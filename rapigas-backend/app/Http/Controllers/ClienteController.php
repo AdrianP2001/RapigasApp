@@ -7,48 +7,48 @@ use App\Models\Cliente;
 
 class ClienteController extends Controller
 {
-    // 1. Obtener lista de clientes (Limitada a 50 para no saturar, igual que Python)
     public function index()
     {
         return Cliente::orderBy('nombre', 'asc')->limit(50)->get();
     }
 
-    // 2. Buscar clientes (Ya lo teníamos)
+    // --- LÓGICA ORIGINAL DE PYTHON (database.py: buscar_clientes) ---
     public function search(Request $request)
     {
         $query = $request->input('q');
         if (!$query) return response()->json([]);
 
-        return Cliente::where('nombre', 'ilike', "%{$query}%")
-            ->orWhere('telefono', 'like', "%{$query}%")
-            ->limit(20)
-            ->get();
-    }
-
-    // 3. Guardar o Actualizar (La lógica "guardar_cliente" de Python)
-    public function store(Request $request)
-    {
-        // Validaciones
-        $request->validate([
-            'nombre' => 'required',
-            'telefono' => 'required|min:10', // Validación de longitud
-            'categoria' => 'required'
-        ]);
-
-        // Verificar duplicados solo si es nuevo
-        if (!$request->id) {
-            $existe = Cliente::where('telefono', $request->telefono)->exists();
-            if ($existe) {
-                return response()->json(['message' => '⚠️ Este número ya está registrado'], 409); // Conflict
-            }
+        // Lógica de prefijo 593 igual que en Python
+        $queryTel = $query;
+        if (str_starts_with($query, '0') && strlen($query) >= 2) {
+            $queryTel = '593' . substr($query, 1);
         }
 
-        // Guardar (Create or Update)
+        // Búsqueda flexible (Nombre O Teléfono normal O Teléfono 593)
+        $clientes = Cliente::where('nombre', 'ilike', "%{$query}%")
+            ->orWhere('telefono', 'ilike', "%{$query}%")
+            ->orWhere('telefono', 'ilike', "%{$queryTel}%")
+            ->limit(10)
+            ->get();
+
+        return response()->json($clientes);
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate(['nombre' => 'required', 'telefono' => 'required']);
+
+        // Formatear teléfono a 593 si viene con 09 (Igual que Python guardar_cliente)
+        $telefono = trim($request->telefono);
+        if (str_starts_with($telefono, '09') && strlen($telefono) == 10) {
+            $telefono = '593' . substr($telefono, 1);
+        }
+
         $cliente = Cliente::updateOrCreate(
-            ['id' => $request->id], // Si trae ID, busca y actualiza
+            ['id' => $request->id],
             [
                 'nombre' => $request->nombre,
-                'telefono' => $request->telefono,
+                'telefono' => $telefono,
                 'direccion' => $request->direccion,
                 'categoria' => $request->categoria,
                 'frecuencia_consumo' => $request->frecuencia_consumo ?? 20,
@@ -60,16 +60,13 @@ class ClienteController extends Controller
         return response()->json($cliente);
     }
 
-    // 4. Eliminar Cliente
     public function destroy($id)
     {
-        try {
-            $cliente = Cliente::findOrFail($id);
+        $cliente = Cliente::find($id);
+        if ($cliente) {
             $cliente->delete();
-            return response()->json(['message' => 'Cliente eliminado']);
-        } catch (\Exception $e) {
-            // Si falla (por ejemplo, tiene ventas asociadas), devolvemos error
-            return response()->json(['message' => '❌ No se puede eliminar (tiene historial de ventas)'], 500);
+            return response()->json(['message' => 'Eliminado']);
         }
+        return response()->json(['message' => 'No encontrado'], 404);
     }
 }

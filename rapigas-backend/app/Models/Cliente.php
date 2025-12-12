@@ -6,9 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Cliente extends Model
 {
-    protected $table = 'clientes'; // Tu tabla en Supabase
-    public $timestamps = false; // Python manejaba las fechas manualmente
-
+    protected $table = 'clientes';
+    public $timestamps = false; // <--- IMPORTANTE
     protected $fillable = [
         'nombre',
         'telefono',
