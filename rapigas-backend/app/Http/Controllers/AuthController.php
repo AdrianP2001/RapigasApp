@@ -1,30 +1,43 @@
-use App\Models\Usuario; // Crea este modelo apuntando a la tabla 'usuarios'
+<?php
+
+namespace App\Http\Controllers;
+use Illuminate\Http\Request;
+use App\Models\Usuario;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
-public function login(Request $request) {
-$user = Usuario::where('usuario', $request->usuario)->first();
+class AuthController extends Controller
+{
+    public function login(Request $request)
+    {
+        // 1. Validar que envíen datos
+        $request->validate([
+            'usuario' => ['required', 'string'],
+            'password' => ['required', 'string']
+        ]);
 
-// Verificamos password igual que en tu script Python: bcrypt.checkpw
-if (!$user || !Hash::check($request->password, $user->password)) {
-return response()->json(['message' => 'Credenciales inválidas'], 401);
-}
+        if (!filter_var($request->usuario, FILTER_VALIDATE_EMAIL)) {
+            throw ValidationException::withMessages(['usuario' => 'El usuario debe ser un correo electrónico válido.']);
+        }
 
-// En Laravel API, solemos retornar un Token (Sanctum)
-$token = $user->createToken('api-token')->plainTextToken;
+        // 2. Buscar el usuario
+        $user = Usuario::where('usuario', $request->usuario)->first();
 
-return response()->json(['token' => $token, 'user' => $user]);
+        // 3. Verificar contraseña
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Credenciales inválidas'
+            ], 401);
+        }
 
-$user = Usuario::where('usuario', $request->usuario)->first();
+        // 4. Crear el token
+        $token = $user->createToken('api-token')->plainTextToken;
 
-if (!$user) {
-return response()->json(['message' => 'Usuario no encontrado'], 401);
-}
-
-// TRUCO: Reemplazar $2b$ (Python) por $2y$ (PHP) temporalmente para verificar
-$hashPython = $user->password;
-$hashPHP = str_replace('$2b$', '$2y$', $hashPython);
-
-if (!Hash::check($request->password, $hashPHP)) {
-return response()->json(['message' => 'Contraseña incorrecta'], 401);
-}
+        // 5. Responder
+        return response()->json([
+            'message' => 'Login exitoso',
+            'token' => $token,
+            'user' => $user
+        ]);
+    }
 }

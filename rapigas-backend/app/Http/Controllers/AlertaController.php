@@ -8,7 +8,7 @@ use Carbon\Carbon;      // Importar Carbon para las fechas
 
 class AlertaController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $clientes = Cliente::all();
         $alertas = [];
