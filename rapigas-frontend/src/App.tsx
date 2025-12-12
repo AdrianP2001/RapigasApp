@@ -2,9 +2,11 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 
-// Componente para proteger rutas (lo usaremos luego para el Dashboard)
-const RutaPrivada = ({ children }: { children: JSX.Element }) => {
+// CORRECCIÓN: Cambiamos 'JSX.Element' por 'React.ReactElement' (o React.ReactNode)
+// Esto soluciona el error TS2503 porque usamos el 'React' que ya importamos arriba.
+const RutaPrivada = ({ children }: { children: React.ReactElement }) => {
   const token = localStorage.getItem('token');
+  // Si hay token, renderiza el hijo (children); si no, redirige al Login.
   return token ? children : <Navigate to="/login" />;
 };
 
@@ -18,7 +20,7 @@ function App() {
         {/* Ruta Dashboard (Protegida) */}
         <Route path="/dashboard" element={
           <RutaPrivada>
-            {/* Aquí pondremos tu Dashboard real pronto */}
+            {/* Contenido protegido */}
             <div style={{ color: 'black', padding: 20 }}>
               <h1>¡Bienvenido al Dashboard de Rapigas!</h1>
               <p>Has iniciado sesión correctamente.</p>
@@ -26,7 +28,7 @@ function App() {
           </RutaPrivada>
         } />
 
-        {/* Redireccionar cualquier ruta desconocida al Login */}
+        {/* Redireccionar rutas desconocidas */}
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>

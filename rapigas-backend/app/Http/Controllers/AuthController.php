@@ -13,4 +13,18 @@ return response()->json(['message' => 'Credenciales inválidas'], 401);
 $token = $user->createToken('api-token')->plainTextToken;
 
 return response()->json(['token' => $token, 'user' => $user]);
+
+$user = Usuario::where('usuario', $request->usuario)->first();
+
+if (!$user) {
+return response()->json(['message' => 'Usuario no encontrado'], 401);
+}
+
+// TRUCO: Reemplazar $2b$ (Python) por $2y$ (PHP) temporalmente para verificar
+$hashPython = $user->password;
+$hashPHP = str_replace('$2b$', '$2y$', $hashPython);
+
+if (!Hash::check($request->password, $hashPHP)) {
+return response()->json(['message' => 'Contraseña incorrecta'], 401);
+}
 }
