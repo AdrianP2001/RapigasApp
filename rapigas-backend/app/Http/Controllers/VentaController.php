@@ -84,4 +84,42 @@ class VentaController extends Controller
             return response()->json(['success' => true, 'venta_id' => $venta->id]);
         });
     }
+
+
+    public function index(Request $request)
+    {
+        // Iniciamos la consulta incluyendo cliente y detalles
+        $query = Venta::with(['cliente', 'detalles.producto'])
+            ->orderBy('fecha_venta', 'desc');
+
+        // Filtro por Fecha (Desde - Hasta)
+        if ($request->desde && $request->hasta) {
+            // Ajustamos 'hasta' al final del día (23:59:59)
+            $hasta = Carbon::parse($request->hasta)->endOfDay();
+            $query->whereBetween('fecha_venta', [$request->desde, $hasta]);
+        }
+
+        // Filtro por Cliente (Nombre)
+        if ($request->cliente) {
+            $query->whereHas('cliente', function ($q) use ($request) {
+                $q->where('nombre', 'ilike', "%{$request->cliente}%");
+            });
+        }
+
+        // Paginamos de 20 en 20 para no saturar
+        return response()->json($query->paginate(20));
+    }
+
+    // --- OPCIONAL: ANULAR VENTA ---
+    public function destroy($id)
+    {
+        // Aquí podrías implementar lógica para devolver stock si manejaras inventario
+        // Por ahora, solo eliminamos el registro.
+        $venta = Venta::find($id);
+        if ($venta) {
+            $venta->delete(); // Esto borra detalles en cascada si la DB está configurada, sino hay que borrarlos manual
+            return response()->json(['message' => 'Venta anulada']);
+        }
+        return response()->json(['message' => 'Venta no encontrada'], 404);
+    }
 }

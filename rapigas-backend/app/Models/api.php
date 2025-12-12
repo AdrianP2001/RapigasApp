@@ -2,50 +2,33 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\VentaController;   // <--- Importante
-use App\Http\Controllers\AlertaController;  // <--- Importante
+use App\Http\Controllers\VentaController;
+use App\Http\Controllers\AlertaController;
 use App\Http\Controllers\ProductoController;
-use App\Http\Controllers\ClienteController; // <--- Importante
+use App\Http\Controllers\ClienteController; // <--- ¡Importante!
 
 // --- Rutas Públicas ---
 Route::post('/login', [AuthController::class, 'login']);
 
-// --- Rutas Protegidas (Solo con Token) ---
+// --- Rutas Protegidas ---
 Route::middleware('auth:sanctum')->group(function () {
 
-    // 1. Dashboard y Alertas
-    Route::get('/dashboard', [VentaController::class, 'resumen']); // <--- La función nueva
+    // Dashboard & Alertas
+    Route::get('/dashboard', [VentaController::class, 'resumen']);
     Route::get('/alertas', [AlertaController::class, 'index']);
+    Route::post('/alertas/{id}/reset', [AlertaController::class, 'reset']);
 
-    // 2. Operaciones de Venta
+    // Ventas
     Route::post('/ventas', [VentaController::class, 'store']);
-
-    // 3. Otros mantenimientos
     Route::get('/productos', [ProductoController::class, 'index']);
 
-    Route::middleware('auth:sanctum')->group(function () {
-        // ... tus otras rutas (Dashboard, Alertas, Ventas) ...
+    // Clientes (Las que faltaban)
+    Route::get('/clientes', [ClienteController::class, 'index']);
+    Route::get('/clientes/buscar', [ClienteController::class, 'search']);
+    Route::post('/clientes', [ClienteController::class, 'store']);
+    Route::delete('/clientes/{id}', [ClienteController::class, 'destroy']);
 
-        // --- Clientes ---
-        Route::get('/clientes/buscar', [ClienteController::class, 'search']); // <--- NUEVA
-
-        // --- Productos ---
-        Route::get('/productos', [ProductoController::class, 'index']);
-
-        Route::get('/dashboard', [VentaController::class, 'resumen']);
-        Route::get('/alertas', [AlertaController::class, 'index']);
-        Route::post('/ventas', [VentaController::class, 'store']);
-        Route::get('/productos', [ProductoController::class, 'index']);
-
-        // --- NUEVA RUTA ---
-        Route::get('/clientes/buscar', [ClienteController::class, 'search']);
-        Route::get('/alertas', [AlertaController::class, 'index']);
-        Route::post('/alertas/{id}/reset', [AlertaController::class, 'reset']); // <--- NUEVA
-        // ...
-        // --- CLIENTES ---
-        Route::get('/clientes', [ClienteController::class, 'index']);       // Listar
-        Route::get('/clientes/buscar', [ClienteController::class, 'search']); // Buscar
-        Route::post('/clientes', [ClienteController::class, 'store']);      // Guardar/Editar
-        Route::delete('/clientes/{id}', [ClienteController::class, 'destroy']); // Eliminar
-    });
+    // Historial
+    Route::get('/ventas', [VentaController::class, 'index']); // Listar/Filtrar
+    Route::delete('/ventas/{id}', [VentaController::class, 'destroy']); // Anular
 });
