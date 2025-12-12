@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axiosConfig';
 
-// Tipos de datos
 interface Producto { id: number; nombre: string; precio: string; }
 interface Cliente { id: number; nombre: string; telefono: string; categoria: string; }
 interface ItemCarrito { producto: Producto; cantidad: number; subtotal: number; }
@@ -14,59 +13,61 @@ const Ventas: React.FC = () => {
     const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
     const [total, setTotal] = useState(0);
 
-    // Cargar productos al iniciar
+    // --- RESPONSIVE LOGIC ---
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 900);
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 900);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     useEffect(() => {
         api.get('/productos').then(res => setProductos(res.data));
     }, []);
 
-    // Buscar clientes
-    const buscarCliente = async (texto: string) => {
-        setBusqueda(texto);
-        if (texto.length > 2) {
-            const res = await api.get(`/clientes/buscar?q=${texto}`);
-            setResultados(res.data);
-        } else {
-            setResultados([]);
+    const ejecutarBusqueda = async () => {
+        if (busqueda.length > 1) {
+            try {
+                const res = await api.get(`/clientes/buscar?q=${busqueda}`);
+                setResultados(res.data);
+            } catch (e) { console.error(e); }
         }
     };
 
-    // Seleccionar cliente y limpiar búsqueda
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') ejecutarBusqueda();
+    };
+
     const seleccionarCliente = (c: Cliente) => {
         setClienteSel(c);
         setBusqueda('');
         setResultados([]);
     };
 
-    // Lógica inteligente de colores y filtros (Igual que en tu Python)
     const getEstiloProducto = (prod: Producto) => {
         const nombre = prod.nombre.toLowerCase();
-        // Lógica de visualización
-        if (clienteSel?.categoria === 'Hogar' && nombre.includes('negocio')) return null; // Ocultar
-        if (clienteSel?.categoria === 'Negocio' && !nombre.includes('negocio')) return null; // Ocultar
+        const categoriaCliente = clienteSel?.categoria || 'Hogar';
 
-        // Colores originales
-        let bgColor = '#005580'; // Azul estándar
-        let textColor = 'white';
+        const esProductoNegocio = nombre.includes('negocio');
+        if (categoriaCliente === 'Hogar' && esProductoNegocio) return null;
+        if (categoriaCliente === 'Negocio' && !esProductoNegocio) return null;
 
-        if (nombre.includes('negocio')) {
-            bgColor = '#6C3483'; // Morado
-            if (nombre.includes('amarillo')) textColor = '#F1C40F';
-            else if (nombre.includes('naranja')) textColor = '#E67E22';
+        let style = { backgroundColor: '#005580', color: 'white', border: 'none' };
+
+        if (esProductoNegocio) {
+            style.backgroundColor = '#6C3483';
+            if (nombre.includes('amarillo')) style.color = '#F1C40F';
+            else if (nombre.includes('naranja')) style.color = '#E67E22';
         } else {
-            if (nombre.includes('naranja')) bgColor = '#E67E22'; // Cilindro Naranja
-            else if (nombre.includes('amarillo')) { bgColor = '#F1C40F'; textColor = 'black'; } // Válvula
-            else if (nombre.includes('agua')) bgColor = '#3498DB'; // Agua
+            if (nombre.includes('naranja')) style.backgroundColor = '#E67E22';
+            else if (nombre.includes('amarillo')) { style.backgroundColor = '#F1C40F'; style.color = 'black'; }
+            else if (nombre.includes('agua')) style.backgroundColor = '#3498DB';
         }
-
-        return { backgroundColor: bgColor, color: textColor };
+        return style;
     };
 
     const agregarAlCarrito = (prod: Producto) => {
-        const nuevoItem = {
-            producto: prod,
-            cantidad: 1,
-            subtotal: parseFloat(prod.precio)
-        };
+        const nuevoItem = { producto: prod, cantidad: 1, subtotal: parseFloat(prod.precio) };
         const nuevoCarrito = [...carrito, nuevoItem];
         setCarrito(nuevoCarrito);
         calcularTotal(nuevoCarrito);
@@ -99,80 +100,84 @@ const Ventas: React.FC = () => {
             setCarrito([]);
             setClienteSel(null);
             setTotal(0);
-        } catch (e) {
-            alert("❌ Error al registrar la venta");
-        }
+        } catch (e) { alert("❌ Error al registrar la venta"); }
     };
 
     return (
-        <div style={styles.container}>
-            {/* PANEL IZQUIERDO (Buscador y Productos) */}
-            <div style={styles.leftPanel}>
-                <h2 style={styles.title}>1. ¿Quién compra?</h2>
+        <div style={{ ...styles.container, flexDirection: isMobile ? 'column' : 'row' }}>
 
-                <div style={{ position: 'relative' }}>
+            {/* --- PANEL PRODUCTOS (Arriba en móvil, Izquierda en PC) --- */}
+            <div style={{
+                ...styles.leftPanel,
+                flex: isMobile ? 'none' : 3,
+                borderRight: isMobile ? 'none' : '1px solid #333',
+                borderBottom: isMobile ? '1px solid #333' : 'none',
+                height: isMobile ? 'auto' : '100%',
+                overflow: isMobile ? 'visible' : 'auto'
+            }}>
+                <h2 style={styles.title}>1. Cliente</h2>
+
+                <div style={styles.searchRow}>
                     <input
                         type="text"
-                        placeholder="Buscar nombre o celular (09...)"
+                        placeholder="Nombre/Celular..."
                         value={busqueda}
-                        onChange={e => buscarCliente(e.target.value)}
+                        onChange={e => setBusqueda(e.target.value)}
+                        onKeyDown={handleKeyDown}
                         style={styles.input}
                     />
-                    {/* Lista flotante de resultados */}
-                    {resultados.length > 0 && (
-                        <div style={styles.dropdown}>
-                            {resultados.map(c => (
-                                <div key={c.id} onClick={() => seleccionarCliente(c)} style={styles.dropdownItem}>
-                                    👤 {c.nombre} | 📞 {c.telefono} | 🏠 {c.categoria || 'Hogar'}
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <button onClick={ejecutarBusqueda} style={styles.btnBuscar}>🔍</button>
                 </div>
 
-                {/* Info del Cliente Seleccionado */}
+                {resultados.length > 0 && (
+                    <div style={styles.resultsList}>
+                        {resultados.map(c => (
+                            <div key={c.id} onClick={() => seleccionarCliente(c)} style={styles.resultItem}>
+                                👤 {c.nombre} <small>({c.categoria})</small>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 <div style={styles.infoCliente}>
                     {clienteSel ? (
-                        <span style={{ color: '#2ecc71', fontWeight: 'bold', fontSize: '18px' }}>
-                            ✅ {clienteSel.nombre} ({clienteSel.categoria || 'Hogar'})
-                        </span>
-                    ) : (
-                        <span style={{ color: 'gray' }}>Ningún cliente seleccionado (Precios: Hogar)</span>
-                    )}
-                    {clienteSel && (
-                        <button onClick={() => setClienteSel(null)} style={styles.btnCancelSmall}>✕</button>
-                    )}
+                        <>
+                            <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>✅ {clienteSel.nombre}</span>
+                            <button onClick={() => setClienteSel(null)} style={styles.btnCancelSmall}>✕</button>
+                        </>
+                    ) : <span style={{ color: 'gray' }}>Seleccione Cliente</span>}
                 </div>
 
-                <h2 style={{ ...styles.title, marginTop: '20px' }}>2. ¿Qué lleva?</h2>
+                <h2 style={{ ...styles.title, marginTop: '20px' }}>2. Productos</h2>
                 <div style={styles.grid}>
                     {productos.map(p => {
                         const estilo = getEstiloProducto(p);
-                        if (!estilo) return null; // Si no corresponde a la categoría, no se muestra
-
+                        if (!estilo) return null;
                         return (
-                            <button
-                                key={p.id}
-                                onClick={() => agregarAlCarrito(p)}
-                                style={{ ...styles.prodCard, ...estilo }}
-                            >
-                                <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{p.nombre}</span>
-                                <span style={{ fontSize: '14px', opacity: 0.9 }}>${parseFloat(p.precio).toFixed(2)}</span>
+                            <button key={p.id} onClick={() => agregarAlCarrito(p)} style={{ ...styles.prodCard, ...estilo }}>
+                                <span style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: 5 }}>{p.nombre}</span>
+                                <span>${parseFloat(p.precio).toFixed(2)}</span>
                             </button>
                         );
                     })}
                 </div>
             </div>
 
-            {/* PANEL DERECHO (Carrito) */}
-            <div style={styles.rightPanel}>
-                <h2 style={styles.title}>Resumen</h2>
+            {/* --- PANEL CARRITO (Abajo en móvil, Derecha en PC) --- */}
+            <div style={{
+                ...styles.rightPanel,
+                flex: isMobile ? 'none' : 1,
+                minHeight: isMobile ? '300px' : 'auto'
+            }}>
+                <h2 style={styles.title}>3. Resumen</h2>
+
                 <div style={styles.carritoList}>
+                    {carrito.length === 0 && <p style={{ textAlign: 'center', color: 'gray' }}>Vacío</p>}
                     {carrito.map((item, i) => (
                         <div key={i} style={styles.carritoItem}>
-                            <span>1 x {item.producto.nombre}</span>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                                <span style={{ marginRight: '10px', fontWeight: 'bold' }}>${item.subtotal.toFixed(2)}</span>
+                            <div>1 x {item.producto.nombre}</div>
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>${item.subtotal.toFixed(2)}</span>
                                 <button onClick={() => eliminarItem(i)} style={styles.btnDelete}>X</button>
                             </div>
                         </div>
@@ -184,12 +189,7 @@ const Ventas: React.FC = () => {
                         Total: ${total.toFixed(2)}
                     </div>
                     <div style={{ display: 'flex', gap: '10px' }}>
-                        <button
-                            onClick={() => { setCarrito([]); setClienteSel(null); }}
-                            style={styles.btnCancel}
-                        >
-                            🗑️ Cancelar
-                        </button>
+                        <button onClick={() => { setCarrito([]); setClienteSel(null); setTotal(0); }} style={styles.btnCancel}>🗑️ CANCELAR</button>
                         <button
                             onClick={cobrar}
                             disabled={!clienteSel || carrito.length === 0}
@@ -198,7 +198,7 @@ const Ventas: React.FC = () => {
                                 opacity: (!clienteSel || carrito.length === 0) ? 0.5 : 1
                             }}
                         >
-                            ✅ Cobrar
+                            ✅ COBRAR
                         </button>
                     </div>
                 </div>
@@ -207,141 +207,78 @@ const Ventas: React.FC = () => {
     );
 };
 
-// Estilos CSS-in-JS (Modo Oscuro Rapigas)
 const styles = {
     container: {
         display: 'flex',
-        height: '100vh',
+        height: '100%', // Se adapta al contenedor padre (Layout)
         backgroundColor: '#1a1a1a',
         color: 'white',
         fontFamily: 'Segoe UI, sans-serif'
     } as React.CSSProperties,
-    leftPanel: {
-        flex: 3, // 75% del ancho
-        padding: '20px',
-        borderRight: '1px solid #333'
-    } as React.CSSProperties,
+    leftPanel: { padding: '20px' } as React.CSSProperties,
     rightPanel: {
-        flex: 1, // 25% del ancho
-        backgroundColor: '#252525', // Ligeramente más claro
+        backgroundColor: '#252525',
         padding: '20px',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column' as const
     } as React.CSSProperties,
     title: {
         margin: '0 0 15px 0',
         borderBottom: '2px solid #444',
-        paddingBottom: '5px'
+        paddingBottom: '5px',
+        fontSize: '20px'
     } as React.CSSProperties,
+    searchRow: { display: 'flex', gap: '10px', marginBottom: '10px' } as React.CSSProperties,
     input: {
-        width: '100%',
-        padding: '12px',
-        fontSize: '16px',
-        backgroundColor: '#333',
-        border: '1px solid #555',
-        color: 'white',
-        borderRadius: '5px',
-        boxSizing: 'border-box' as const
+        flex: 1, padding: '12px', fontSize: '16px', backgroundColor: '#333',
+        border: '1px solid #555', color: 'white', borderRadius: '5px'
     } as React.CSSProperties,
-    dropdown: {
-        position: 'absolute' as const,
-        top: '100%',
-        left: 0,
-        right: 0,
-        backgroundColor: '#444',
-        border: '1px solid #555',
-        borderRadius: '0 0 5px 5px',
-        zIndex: 10,
-        maxHeight: '200px',
-        overflowY: 'auto' as const
+    btnBuscar: {
+        padding: '0 15px', backgroundColor: '#444', color: 'white',
+        border: '1px solid #555', borderRadius: '5px', cursor: 'pointer'
     } as React.CSSProperties,
-    dropdownItem: {
-        padding: '10px',
-        cursor: 'pointer',
-        borderBottom: '1px solid #555'
+    resultsList: {
+        backgroundColor: '#333', borderRadius: '5px', marginBottom: '15px', border: '1px solid #555'
+    } as React.CSSProperties,
+    resultItem: {
+        padding: '10px', borderBottom: '1px solid #444', cursor: 'pointer'
     } as React.CSSProperties,
     infoCliente: {
-        margin: '15px 0',
-        padding: '10px',
-        backgroundColor: '#222',
-        borderRadius: '5px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+        marginBottom: '20px', padding: '10px', backgroundColor: '#222',
+        borderRadius: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+    } as React.CSSProperties,
+    btnCancelSmall: {
+        background: 'none', border: 'none', color: '#aaa', fontSize: '18px', cursor: 'pointer'
     } as React.CSSProperties,
     grid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-        gap: '15px'
+        gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', // Ajustado para móviles
+        gap: '10px'
     } as React.CSSProperties,
     prodCard: {
-        height: '100px',
-        borderRadius: '10px',
-        border: 'none',
-        display: 'flex',
-        flexDirection: 'column' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-        cursor: 'pointer',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-        transition: 'transform 0.1s'
+        height: '90px', borderRadius: '10px', display: 'flex', flexDirection: 'column' as const,
+        justifyContent: 'center', alignItems: 'center', cursor: 'pointer',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
     } as React.CSSProperties,
-    carritoList: {
-        flex: 1,
-        overflowY: 'auto' as const,
-        marginBottom: '20px'
-    } as React.CSSProperties,
+    carritoList: { flex: 1, overflowY: 'auto' as const, marginBottom: '20px' } as React.CSSProperties,
     carritoItem: {
-        backgroundColor: '#333',
-        padding: '10px',
-        borderRadius: '5px',
-        marginBottom: '8px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-    } as React.CSSProperties,
-    footer: {
-        borderTop: '2px solid #444',
-        paddingTop: '20px',
-        textAlign: 'center' as const
+        backgroundColor: '#333', padding: '12px', borderRadius: '5px', marginBottom: '8px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
     } as React.CSSProperties,
     btnDelete: {
-        backgroundColor: '#c0392b',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        padding: '2px 8px',
-        cursor: 'pointer',
-        marginLeft: '10px'
+        backgroundColor: '#c0392b', color: 'white', border: 'none', borderRadius: '4px',
+        padding: '5px 10px', cursor: 'pointer'
     } as React.CSSProperties,
-    btnCancelSmall: {
-        background: 'none',
-        border: 'none',
-        color: '#aaa',
-        fontSize: '20px',
-        cursor: 'pointer'
+    footer: {
+        borderTop: '2px solid #444', paddingTop: '20px', textAlign: 'center' as const
     } as React.CSSProperties,
     btnCancel: {
-        flex: 1,
-        padding: '15px',
-        backgroundColor: '#c0392b',
-        color: 'white',
-        border: 'none',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        fontWeight: 'bold',
-        fontSize: '16px'
+        flex: 1, padding: '15px', backgroundColor: '#c0392b', color: 'white', border: 'none',
+        borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold'
     } as React.CSSProperties,
     btnCobrar: {
-        flex: 2,
-        padding: '15px',
-        backgroundColor: '#27ae60',
-        color: 'white',
-        border: 'none',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        fontWeight: 'bold',
-        fontSize: '18px'
+        flex: 3, padding: '15px', backgroundColor: '#27ae60', color: 'white', border: 'none',
+        borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '18px'
     } as React.CSSProperties
 };
 
