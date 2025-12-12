@@ -1,25 +1,35 @@
 import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Login from './pages/Login';
+
+// Componente para proteger rutas (lo usaremos luego para el Dashboard)
+const RutaPrivada = ({ children }: { children: JSX.Element }) => {
+  const token = localStorage.getItem('token');
+  return token ? children : <Navigate to="/login" />;
+};
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        {/* Ruta Login */}
+        <Route path="/login" element={<Login />} />
+
+        {/* Ruta Dashboard (Protegida) */}
+        <Route path="/dashboard" element={
+          <RutaPrivada>
+            {/* Aquí pondremos tu Dashboard real pronto */}
+            <div style={{ color: 'black', padding: 20 }}>
+              <h1>¡Bienvenido al Dashboard de Rapigas!</h1>
+              <p>Has iniciado sesión correctamente.</p>
+            </div>
+          </RutaPrivada>
+        } />
+
+        {/* Redireccionar cualquier ruta desconocida al Login */}
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
