@@ -1,41 +1,33 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use Illuminate\Http\Request;
 use App\Models\Usuario;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        // 1. Validar que envíen datos
+        // Validar que los datos vengan en la petición
         $request->validate([
-            'usuario' => ['required', 'string'],
-            'password' => ['required', 'string']
+            'usuario' => 'required',
+            'password' => 'required'
         ]);
 
-        if (!filter_var($request->usuario, FILTER_VALIDATE_EMAIL)) {
-            throw ValidationException::withMessages(['usuario' => 'El usuario debe ser un correo electrónico válido.']);
-        }
-
-        // 2. Buscar el usuario
+        // Buscar el usuario en la base de datos
         $user = Usuario::where('usuario', $request->usuario)->first();
 
-        // 3. Verificar contraseña
+        // Verificar si existe y si la contraseña coincide
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Credenciales inválidas'
-            ], 401);
+            return response()->json(['message' => 'Credenciales inválidas'], 401);
         }
 
-        // 4. Crear el token
+        // Generar el token de acceso
         $token = $user->createToken('api-token')->plainTextToken;
 
-        // 5. Responder
         return response()->json([
-            'message' => 'Login exitoso',
             'token' => $token,
             'user' => $user
         ]);
