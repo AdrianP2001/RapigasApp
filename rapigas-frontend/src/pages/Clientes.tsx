@@ -7,7 +7,6 @@ interface Cliente {
 }
 
 const Clientes: React.FC = () => {
-    // --- RESPONSIVE LOGIC ---
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -38,19 +37,26 @@ const Clientes: React.FC = () => {
 
     const guardar = async () => {
         if (!form.nombre || !form.telefono || form.telefono.length !== 10) {
-            setMensaje({ text: '❌ Datos inválidos', color: '#ff4444' }); return;
+            setMensaje({ text: '❌ Datos inválidos (Revise el celular)', color: '#ff4444' }); return;
         }
         try {
+            // Enviamos siempre el ID si estamos editando
             await api.post('/clientes', { ...form, id: idEdicion });
-            setMensaje({ text: '✅ Guardado', color: '#2ecc71' });
-            limpiarForm(); cargarClientes();
-        } catch (e) { setMensaje({ text: '❌ Error', color: '#ff4444' }); }
+            setMensaje({ text: idEdicion ? '✅ Cliente Actualizado' : '✅ Cliente Guardado', color: '#2ecc71' });
+            limpiarForm();
+            cargarClientes();
+        } catch (e) { setMensaje({ text: '❌ Error al guardar', color: '#ff4444' }); }
     };
 
     const eliminar = async () => {
-        if (!idEdicion || !window.confirm("¿Eliminar?")) return;
-        try { await api.delete(`/clientes/${idEdicion}`); limpiarForm(); cargarClientes(); }
-        catch { setMensaje({ text: '❌ No se puede eliminar', color: '#ff4444' }); }
+        if (!idEdicion || !window.confirm("¿Seguro que deseas eliminar este cliente?")) return;
+        try {
+            await api.delete(`/clientes/${idEdicion}`);
+            setMensaje({ text: '🗑️ Cliente eliminado', color: 'gray' });
+            limpiarForm();
+            cargarClientes();
+        }
+        catch { setMensaje({ text: '❌ No se puede eliminar (Tiene historial de ventas)', color: '#ff4444' }); }
     };
 
     const limpiarForm = () => {
@@ -58,16 +64,29 @@ const Clientes: React.FC = () => {
         setIdEdicion(null); setMensaje({ text: '', color: '' });
     };
 
-    const cargarParaEditar = (c: Cliente) => { setForm(c); setIdEdicion(c.id || null); };
+    // --- CORRECCIÓN CLAVE: FORMATEAR AL CARGAR ---
+    const cargarParaEditar = (c: Cliente) => {
+        // 1. Convertir teléfono de 593 a 09 para que encaje en el input
+        let tel = c.telefono || '';
+        if (tel.startsWith('593')) tel = '0' + tel.substring(3);
+
+        // 2. Manejar nulos en dirección para evitar error de React
+        setForm({
+            ...c,
+            telefono: tel,
+            direccion: c.direccion || '', // Evita null
+            frecuencia_consumo: c.frecuencia_consumo || 20,
+            frecuencia_agua: c.frecuencia_agua || 7
+        });
+        setIdEdicion(c.id || null);
+        setMensaje({ text: '✏️ Editando...', color: '#E67E22' });
+    };
 
     return (
         <div style={styles.container}>
             <h2 style={{ marginTop: 0 }}>Gestión de Clientes</h2>
 
-            {/* FORMULARIO RESPONSIVE */}
             <div style={styles.formPanel}>
-
-                {/* Fila 1: Nombre, Tel, Cat */}
                 <div style={{ ...styles.row, flexDirection: isMobile ? 'column' : 'row' }}>
                     <input name="nombre" placeholder="Nombre Completo" value={form.nombre} onChange={handleChange} style={{ ...styles.input, flex: 2 }} />
                     <input name="telefono" placeholder="Celular (09...)" value={form.telefono} onChange={handleChange} style={{ ...styles.input, flex: 1 }} maxLength={10} />
@@ -77,7 +96,6 @@ const Clientes: React.FC = () => {
                     </select>
                 </div>
 
-                {/* Fila 2: Tiempos */}
                 <div style={{ ...styles.row, flexDirection: isMobile ? 'column' : 'row' }}>
                     <input name="direccion" placeholder="Dirección / Referencia" value={form.direccion} onChange={handleChange} style={{ ...styles.input, flex: 2 }} />
                     <div style={{ display: 'flex', gap: 10, flex: 1 }}>
@@ -92,7 +110,6 @@ const Clientes: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Botones */}
                 <div style={{ display: 'flex', gap: 10, marginTop: 15 }}>
                     <button onClick={guardar} style={{ ...styles.btn, flex: 2, backgroundColor: idEdicion ? '#E67E22' : '#2ecc71' }}>
                         {idEdicion ? 'Actualizar' : 'Guardar Nuevo'}
@@ -102,10 +119,9 @@ const Clientes: React.FC = () => {
                     )}
                     <button onClick={limpiarForm} style={{ ...styles.btn, backgroundColor: '#444' }}>Limpiar</button>
                 </div>
-                <p style={{ color: mensaje.color, textAlign: 'center', marginTop: 10 }}>{mensaje.text}</p>
+                <p style={{ color: mensaje.color, textAlign: 'center', marginTop: 10, minHeight: '20px' }}>{mensaje.text}</p>
             </div>
 
-            {/* LISTA */}
             <div style={{ marginBottom: 10, display: 'flex', gap: 10 }}>
                 <input placeholder="🔍 Buscar..." value={busqueda} onChange={e => { setBusqueda(e.target.value); cargarClientes(e.target.value) }} style={{ ...styles.input, flex: 1 }} />
             </div>

@@ -19,7 +19,9 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['http://localhost:3000'],
+    #'allowed_origins' => ['http://localhost:3000'],
+
+    'allowed_origins' => ['*'], // <--- CAMBIO AQUÍ: Permitir acceso desde cualquier IP (Celular, Tablet, PC)
 
     'allowed_origins_patterns' => [],
 

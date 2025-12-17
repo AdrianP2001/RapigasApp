@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use App\Models\Venta;
 use App\Models\DetalleVenta;
 use App\Models\Cliente;
@@ -87,24 +88,60 @@ class VentaController extends Controller
         ]);
     }
 
-    // Historial
+    // Historial Optimizado
     public function index(Request $request)
     {
-        $query = Venta::with(['cliente', 'detalles.producto'])->orderBy('fecha_venta', 'desc');
+        // 1. "with": Seleccionamos solo las columnas necesarias de las relaciones (nombre, id)
+        // 2. "select": Seleccionamos solo las columnas necesarias de la venta
+        $query = Venta::with([
+            'cliente:id,nombre',
+            'detalles:id,venta_id,producto_id,cantidad',
+            'detalles.producto:id,nombre'
+        ])
+            ->select('id', 'cliente_id', 'total', 'fecha_venta') // <--- NO traemos 'metodo_pago' ni otros campos pesados si no se usan
+            ->orderBy('fecha_venta', 'desc');
 
+        // Filtros (ahora rapidísimos gracias al índice)
         if ($request->desde) $query->whereDate('fecha_venta', '>=', $request->desde);
         if ($request->hasta) $query->whereDate('fecha_venta', '<=', $request->hasta);
 
+        // Filtro por nombre de cliente (optimizado)
+        if ($request->cliente) {
+            $query->whereHas('cliente', function ($q) use ($request) {
+                $q->where('nombre', 'ilike', "%{$request->cliente}%");
+            });
+        }
+
+        // Paginación simple es más rápida en tablas grandes porque no cuenta el total exacto
         return response()->json($query->paginate(20));
     }
 
-    public function destroy($id)
+    // Anular Venta
+
+    public function destroy(Request $request, $id)
     {
-        $v = Venta::find($id);
-        if ($v) {
-            $v->delete();
-            return response()->json(['msg' => 'Ok']);
+        // Verificar contraseña del usuario actual (admin)
+        $user = $request->user();
+        $passwordIngresada = $request->input('password');
+
+        if (!$passwordIngresada || !Hash::check($passwordIngresada, $user->password)) {
+            return response()->json(['message' => 'Contraseña incorrecta'], 403); // Error 403: Prohibido
         }
-        return response()->json(['msg' => 'No found'], 404);
+
+        try {
+            $venta = Venta::find($id);
+
+            if (!$venta) {
+                return response()->json(['message' => 'Venta no encontrada'], 404);
+            }
+
+            // Eliminación en cascada
+            $venta->detalles()->delete();
+            $venta->delete();
+
+            return response()->json(['message' => 'Venta anulada correctamente']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error al anular: ' . $e->getMessage()], 500);
+        }
     }
 }

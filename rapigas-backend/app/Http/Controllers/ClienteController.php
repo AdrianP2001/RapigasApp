@@ -62,11 +62,14 @@ class ClienteController extends Controller
 
     public function destroy($id)
     {
-        $cliente = Cliente::find($id);
-        if ($cliente) {
+        try {
+            $cliente = Cliente::findOrFail($id);
             $cliente->delete();
-            return response()->json(['message' => 'Eliminado']);
+            return response()->json(['message' => 'Cliente eliminado']);
+        } catch (\Exception $e) {
+            // Si falla (por ejemplo, llave foránea de ventas), devolvemos error 500
+            // El frontend detectará esto y mostrará el mensaje rojo.
+            return response()->json(['message' => 'No se puede eliminar'], 500);
         }
-        return response()->json(['message' => 'No encontrado'], 404);
     }
 }
