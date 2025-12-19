@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
+import { useResponsive } from '../hooks/useResponsive';
+import { theme } from '../styles/theme';
 
 interface Producto { id: number; nombre: string; precio: string; }
 interface Cliente { id: number; nombre: string; telefono: string; categoria: string; }
 interface ItemCarrito { producto: Producto; cantidad: number; subtotal: number; }
 
 const Ventas: React.FC = () => {
+    // --- ESTADOS ---
     const [busqueda, setBusqueda] = useState('');
     const [resultados, setResultados] = useState<Cliente[]>([]);
     const [clienteSel, setClienteSel] = useState<Cliente | null>(null);
@@ -13,26 +16,41 @@ const Ventas: React.FC = () => {
     const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
     const [total, setTotal] = useState(0);
 
-    // --- RESPONSIVE LOGIC ---
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 900);
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 900);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
+    // --- HOOK RESPONSIVE ---
+    const { isMobile, isTablet } = useResponsive();
 
+    const getGridTemplate = () => {
+        if (isMobile) return 'repeat(auto-fill, minmax(130px, 1fr))';
+        if (isTablet) return 'repeat(auto-fill, minmax(160px, 1fr))';
+        return 'repeat(auto-fill, minmax(180px, 1fr))';
+    };
+
+    // --- CARGA INICIAL ---
     useEffect(() => {
         api.get('/productos').then(res => setProductos(res.data));
     }, []);
 
-    const ejecutarBusqueda = async () => {
+    // --- BÚSQUEDA (Con useCallback para corregir Warning) ---
+    const ejecutarBusqueda = useCallback(async () => {
         if (busqueda.length > 1) {
             try {
                 const res = await api.get(`/clientes/buscar?q=${busqueda}`);
                 setResultados(res.data);
             } catch (e) { console.error(e); }
         }
-    };
+    }, [busqueda]); // Dependencia correcta
+
+    // Debounce
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (busqueda.length > 1) {
+                ejecutarBusqueda();
+            } else if (busqueda === '') {
+                setResultados([]);
+            }
+        }, 500);
+        return () => clearTimeout(delayDebounceFn);
+    }, [busqueda, ejecutarBusqueda]); // Ahora React está feliz con las dependencias
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') ejecutarBusqueda();
@@ -44,28 +62,37 @@ const Ventas: React.FC = () => {
         setResultados([]);
     };
 
+    // --- ESTILOS DINÁMICOS ---
     const getEstiloProducto = (prod: Producto) => {
         const nombre = prod.nombre.toLowerCase();
         const categoriaCliente = clienteSel?.categoria || 'Hogar';
-
         const esProductoNegocio = nombre.includes('negocio');
+
         if (categoriaCliente === 'Hogar' && esProductoNegocio) return null;
         if (categoriaCliente === 'Negocio' && !esProductoNegocio) return null;
 
-        let style = { backgroundColor: '#005580', color: 'white', border: 'none' };
+        let style = {
+            backgroundColor: theme.colors.primary,
+            color: 'white',
+            border: `1px solid ${theme.colors.border}`
+        };
 
         if (esProductoNegocio) {
             style.backgroundColor = '#6C3483';
-            if (nombre.includes('amarillo')) style.color = '#F1C40F';
+            if (nombre.includes('amarillo')) style.color = theme.colors.warning;
             else if (nombre.includes('naranja')) style.color = '#E67E22';
         } else {
             if (nombre.includes('naranja')) style.backgroundColor = '#E67E22';
-            else if (nombre.includes('amarillo')) { style.backgroundColor = '#F1C40F'; style.color = 'black'; }
-            else if (nombre.includes('agua')) style.backgroundColor = '#3498DB';
+            else if (nombre.includes('amarillo')) {
+                style.backgroundColor = theme.colors.warning;
+                style.color = 'black';
+            }
+            else if (nombre.includes('agua')) style.backgroundColor = theme.colors.primary;
         }
         return style;
     };
 
+    // --- LÓGICA CARRITO ---
     const agregarAlCarrito = (prod: Producto) => {
         const nuevoItem = { producto: prod, cantidad: 1, subtotal: parseFloat(prod.precio) };
         const nuevoCarrito = [...carrito, nuevoItem];
@@ -105,18 +132,16 @@ const Ventas: React.FC = () => {
 
     return (
         <div style={{ ...styles.container, flexDirection: isMobile ? 'column' : 'row' }}>
-
-            {/* --- PANEL PRODUCTOS (Arriba en móvil, Izquierda en PC) --- */}
+            {/* PANEL IZQUIERDO */}
             <div style={{
                 ...styles.leftPanel,
                 flex: isMobile ? 'none' : 3,
-                borderRight: isMobile ? 'none' : '1px solid #333',
-                borderBottom: isMobile ? '1px solid #333' : 'none',
+                borderRight: isMobile ? 'none' : `1px solid ${theme.colors.border}`,
+                borderBottom: isMobile ? `1px solid ${theme.colors.border}` : 'none',
                 height: isMobile ? 'auto' : '100%',
                 overflow: isMobile ? 'visible' : 'auto'
             }}>
                 <h2 style={styles.title}>1. Cliente</h2>
-
                 <div style={styles.searchRow}>
                     <input
                         type="text"
@@ -133,7 +158,7 @@ const Ventas: React.FC = () => {
                     <div style={styles.resultsList}>
                         {resultados.map(c => (
                             <div key={c.id} onClick={() => seleccionarCliente(c)} style={styles.resultItem}>
-                                👤 {c.nombre} <small>({c.categoria})</small>
+                                👤 {c.nombre} <small style={{ color: theme.colors.textMuted }}>({c.categoria})</small>
                             </div>
                         ))}
                     </div>
@@ -142,14 +167,14 @@ const Ventas: React.FC = () => {
                 <div style={styles.infoCliente}>
                     {clienteSel ? (
                         <>
-                            <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>✅ {clienteSel.nombre}</span>
+                            <span style={{ color: theme.colors.secondary, fontWeight: 'bold' }}>✅ {clienteSel.nombre}</span>
                             <button onClick={() => setClienteSel(null)} style={styles.btnCancelSmall}>✕</button>
                         </>
-                    ) : <span style={{ color: 'gray' }}>Seleccione Cliente</span>}
+                    ) : <span style={{ color: theme.colors.textMuted }}>Seleccione Cliente</span>}
                 </div>
 
-                <h2 style={{ ...styles.title, marginTop: '20px' }}>2. Productos</h2>
-                <div style={styles.grid}>
+                <h2 style={{ ...styles.title, marginTop: theme.spacing.md }}>2. Productos</h2>
+                <div style={{ ...styles.grid, gridTemplateColumns: getGridTemplate() }}>
                     {productos.map(p => {
                         const estilo = getEstiloProducto(p);
                         if (!estilo) return null;
@@ -163,29 +188,27 @@ const Ventas: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- PANEL CARRITO (Abajo en móvil, Derecha en PC) --- */}
+            {/* PANEL DERECHO */}
             <div style={{
                 ...styles.rightPanel,
                 flex: isMobile ? 'none' : 1,
                 minHeight: isMobile ? '300px' : 'auto'
             }}>
                 <h2 style={styles.title}>3. Resumen</h2>
-
                 <div style={styles.carritoList}>
-                    {carrito.length === 0 && <p style={{ textAlign: 'center', color: 'gray' }}>Vacío</p>}
+                    {carrito.length === 0 && <p style={{ textAlign: 'center', color: theme.colors.textMuted }}>Carrito Vacío</p>}
                     {carrito.map((item, i) => (
                         <div key={i} style={styles.carritoItem}>
                             <div>1 x {item.producto.nombre}</div>
                             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                                <span style={{ color: '#2ecc71', fontWeight: 'bold' }}>${item.subtotal.toFixed(2)}</span>
+                                <span style={{ color: theme.colors.secondary, fontWeight: 'bold' }}>${item.subtotal.toFixed(2)}</span>
                                 <button onClick={() => eliminarItem(i)} style={styles.btnDelete}>X</button>
                             </div>
                         </div>
                     ))}
                 </div>
-
                 <div style={styles.footer}>
-                    <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '15px', color: '#2ecc71' }}>
+                    <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '15px', color: theme.colors.secondary }}>
                         Total: ${total.toFixed(2)}
                     </div>
                     <div style={{ display: 'flex', gap: '10px' }}>
@@ -207,78 +230,73 @@ const Ventas: React.FC = () => {
     );
 };
 
+// Estilos usando Theme (Sin colores quemados)
 const styles = {
     container: {
-        display: 'flex',
-        height: '100%', // Se adapta al contenedor padre (Layout)
-        backgroundColor: '#1a1a1a',
-        color: 'white',
+        display: 'flex', height: '100%',
+        backgroundColor: theme.colors.darkBg,
+        color: theme.colors.text,
         fontFamily: 'Segoe UI, sans-serif'
     } as React.CSSProperties,
-    leftPanel: { padding: '20px' } as React.CSSProperties,
+    leftPanel: { padding: theme.spacing.md } as React.CSSProperties,
     rightPanel: {
-        backgroundColor: '#252525',
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column' as const
+        backgroundColor: theme.colors.panelBg,
+        padding: theme.spacing.md,
+        display: 'flex', flexDirection: 'column' as const
     } as React.CSSProperties,
     title: {
-        margin: '0 0 15px 0',
-        borderBottom: '2px solid #444',
-        paddingBottom: '5px',
-        fontSize: '20px'
+        margin: `0 0 ${theme.spacing.sm} 0`,
+        borderBottom: `2px solid ${theme.colors.border}`,
+        paddingBottom: '5px', fontSize: '20px'
     } as React.CSSProperties,
-    searchRow: { display: 'flex', gap: '10px', marginBottom: '10px' } as React.CSSProperties,
+    searchRow: { display: 'flex', gap: '10px', marginBottom: theme.spacing.sm } as React.CSSProperties,
     input: {
-        flex: 1, padding: '12px', fontSize: '16px', backgroundColor: '#333',
-        border: '1px solid #555', color: 'white', borderRadius: '5px'
+        flex: 1, padding: '12px', fontSize: '16px', backgroundColor: theme.colors.panelBg,
+        border: `1px solid ${theme.colors.border}`, color: 'white', borderRadius: theme.borderRadius
     } as React.CSSProperties,
     btnBuscar: {
         padding: '0 15px', backgroundColor: '#444', color: 'white',
-        border: '1px solid #555', borderRadius: '5px', cursor: 'pointer'
+        border: `1px solid ${theme.colors.border}`, borderRadius: theme.borderRadius, cursor: 'pointer'
     } as React.CSSProperties,
     resultsList: {
-        backgroundColor: '#333', borderRadius: '5px', marginBottom: '15px', border: '1px solid #555'
+        backgroundColor: theme.colors.panelBg, borderRadius: theme.borderRadius, marginBottom: theme.spacing.sm, border: `1px solid ${theme.colors.border}`
     } as React.CSSProperties,
     resultItem: {
-        padding: '10px', borderBottom: '1px solid #444', cursor: 'pointer'
+        padding: '10px', borderBottom: `1px solid ${theme.colors.border}`, cursor: 'pointer'
     } as React.CSSProperties,
     infoCliente: {
-        marginBottom: '20px', padding: '10px', backgroundColor: '#222',
-        borderRadius: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+        marginBottom: theme.spacing.md, padding: '10px', backgroundColor: '#222',
+        borderRadius: theme.borderRadius, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
     } as React.CSSProperties,
     btnCancelSmall: {
         background: 'none', border: 'none', color: '#aaa', fontSize: '18px', cursor: 'pointer'
     } as React.CSSProperties,
-    grid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', // Ajustado para móviles
-        gap: '10px'
-    } as React.CSSProperties,
+    grid: { display: 'grid', gap: theme.spacing.sm } as React.CSSProperties,
     prodCard: {
-        height: '90px', borderRadius: '10px', display: 'flex', flexDirection: 'column' as const,
+        height: '90px', borderRadius: theme.borderRadius, display: 'flex', flexDirection: 'column' as const,
         justifyContent: 'center', alignItems: 'center', cursor: 'pointer',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+        boxShadow: '0 4px 6px rgba(0,0,0,0.3)', transition: 'transform 0.1s'
     } as React.CSSProperties,
-    carritoList: { flex: 1, overflowY: 'auto' as const, marginBottom: '20px' } as React.CSSProperties,
+    carritoList: { flex: 1, overflowY: 'auto' as const, marginBottom: theme.spacing.md } as React.CSSProperties,
     carritoItem: {
-        backgroundColor: '#333', padding: '12px', borderRadius: '5px', marginBottom: '8px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+        backgroundColor: '#333', padding: '12px', borderRadius: theme.borderRadius, marginBottom: '8px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        borderLeft: `4px solid ${theme.colors.primary}`
     } as React.CSSProperties,
     btnDelete: {
-        backgroundColor: '#c0392b', color: 'white', border: 'none', borderRadius: '4px',
+        backgroundColor: theme.colors.danger, color: 'white', border: 'none', borderRadius: '4px',
         padding: '5px 10px', cursor: 'pointer'
     } as React.CSSProperties,
     footer: {
-        borderTop: '2px solid #444', paddingTop: '20px', textAlign: 'center' as const
+        borderTop: `2px solid ${theme.colors.border}`, paddingTop: theme.spacing.md, textAlign: 'center' as const
     } as React.CSSProperties,
     btnCancel: {
-        flex: 1, padding: '15px', backgroundColor: '#c0392b', color: 'white', border: 'none',
-        borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold'
+        flex: 1, padding: '15px', backgroundColor: theme.colors.danger, color: 'white', border: 'none',
+        borderRadius: theme.borderRadius, cursor: 'pointer', fontWeight: 'bold'
     } as React.CSSProperties,
     btnCobrar: {
-        flex: 3, padding: '15px', backgroundColor: '#27ae60', color: 'white', border: 'none',
-        borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '18px'
+        flex: 3, padding: '15px', backgroundColor: theme.colors.secondary, color: 'white', border: 'none',
+        borderRadius: theme.borderRadius, cursor: 'pointer', fontWeight: 'bold', fontSize: '18px'
     } as React.CSSProperties
 };
 

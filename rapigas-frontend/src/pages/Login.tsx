@@ -88,6 +88,7 @@ const Login: React.FC = () => {
                         placeholder="Contraseña"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="current-password"  //
                         style={styles.input}
                         disabled={loading || !conectado}
                     />

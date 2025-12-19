@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Cache;
 use App\Models\Venta;
 use App\Models\DetalleVenta;
 use App\Models\Cliente;
@@ -12,10 +13,10 @@ use Carbon\Carbon;
 
 class VentaController extends Controller
 {
+    // 1. REGISTRAR VENTA (Sin cambios, funciona bien)
     public function store(Request $request)
     {
         return DB::transaction(function () use ($request) {
-            // 1. Cabecera
             $venta = Venta::create([
                 'cliente_id' => $request->cliente_id,
                 'total' => $request->total,
@@ -26,7 +27,6 @@ class VentaController extends Controller
             $actualizarGas = false;
             $actualizarAgua = false;
 
-            // 2. Detalles y Detección de Tipo (Igual a Python)
             foreach ($request->carrito as $item) {
                 DetalleVenta::create([
                     'venta_id' => $venta->id,
@@ -35,13 +35,11 @@ class VentaController extends Controller
                     'precio_unitario' => $item['precio']
                 ]);
 
-                // Análisis de string (Lógica de negocio original)
                 $nombre = strtolower($item['nombre']);
                 if (str_contains($nombre, 'gas')) $actualizarGas = true;
                 if (str_contains($nombre, 'agua')) $actualizarAgua = true;
             }
 
-            // 3. Actualizar Cliente
             if ($actualizarGas || $actualizarAgua) {
                 $cliente = Cliente::find($request->cliente_id);
                 if ($cliente) {
@@ -51,97 +49,86 @@ class VentaController extends Controller
                 }
             }
 
+            Cache::tags(['dashboard'])->flush();
             return response()->json(['success' => true]);
         });
     }
 
-    // --- Dashboard y Reportes ---
+    // 2. Resumen con Cache Tags (Redis)
     public function resumen()
     {
-        $hoy = Carbon::today();
+        $inicio = Carbon::today();
+        $fin = Carbon::today()->endOfDay();
+        $cacheKey = "stats_" . $inicio->format('Ymd');
 
-        // Suma total
-        $totalVentas = Venta::whereDate('fecha_venta', $hoy)->sum('total');
+        // Usamos 'tags' para poder borrar todo el grupo 'dashboard' de un golpe
+        return Cache::tags(['dashboard'])->remember($cacheKey, 3600, function () use ($inicio, $fin) {
 
-        // Conteo inteligente usando DetalleVenta
-        // Necesitamos unir tablas porque 'nombre' está en productos, no en detalle
-        $detalles = DB::table('detalle_ventas')
-            ->join('ventas', 'ventas.id', '=', 'detalle_ventas.venta_id')
-            ->join('productos', 'productos.id', '=', 'detalle_ventas.producto_id')
-            ->whereDate('ventas.fecha_venta', $hoy)
-            ->select('detalle_ventas.cantidad', 'productos.nombre')
-            ->get();
+            // Tu consulta SQL optimizada (la que hicimos antes)
+            $stats = DB::table('detalle_ventas')
+                ->join('ventas', 'ventas.id', '=', 'detalle_ventas.venta_id')
+                ->join('productos', 'productos.id', '=', 'detalle_ventas.producto_id')
+                ->whereBetween('ventas.fecha_venta', [$inicio, $fin])
+                ->selectRaw("
+                    COALESCE(SUM(detalle_ventas.cantidad * detalle_ventas.precio_unitario), 0) as total_dinero,
+                    COALESCE(SUM(CASE WHEN productos.nombre ILIKE '%gas%' THEN detalle_ventas.cantidad ELSE 0 END), 0) as total_gas,
+                    COALESCE(SUM(CASE WHEN productos.nombre ILIKE '%agua%' THEN detalle_ventas.cantidad ELSE 0 END), 0) as total_agua
+                ")
+                ->first();
 
-        $gas = 0;
-        $agua = 0;
-
-        foreach ($detalles as $d) {
-            $n = strtolower($d->nombre);
-            if (str_contains($n, 'gas')) $gas += $d->cantidad;
-            elseif (str_contains($n, 'agua')) $agua += $d->cantidad;
-        }
-
-        return response()->json([
-            'ventas_hoy' => $totalVentas,
-            'cantidad_gas' => $gas,
-            'cantidad_agua' => $agua
-        ]);
+            return [
+                'ventas_hoy' => (float) $stats->total_dinero,
+                'cantidad_gas' => (int) $stats->total_gas,
+                'cantidad_agua' => (int) $stats->total_agua
+            ];
+        });
     }
 
-    // Historial Optimizado
+    // 3. HISTORIAL (OPTIMIZADO CON SELECT)
     public function index(Request $request)
     {
-        // 1. "with": Seleccionamos solo las columnas necesarias de las relaciones (nombre, id)
-        // 2. "select": Seleccionamos solo las columnas necesarias de la venta
+        // Usamos 'select' para traer SOLO lo necesario y aligerar la carga de objetos
         $query = Venta::with([
-            'cliente:id,nombre',
-            'detalles:id,venta_id,producto_id,cantidad',
-            'detalles.producto:id,nombre'
+            'cliente:id,nombre', // Solo nombre del cliente
+            'detalles:id,venta_id,producto_id,cantidad', // Solo IDs y cantidad
+            'detalles.producto:id,nombre' // Solo nombre del producto
         ])
-            ->select('id', 'cliente_id', 'total', 'fecha_venta') // <--- NO traemos 'metodo_pago' ni otros campos pesados si no se usan
+            ->select('id', 'cliente_id', 'total', 'fecha_venta') // Ignoramos columnas pesadas si las hubiera
             ->orderBy('fecha_venta', 'desc');
 
-        // Filtros (ahora rapidísimos gracias al índice)
+        // Filtros Rápidos (Asegúrate de haber corrido la migración de índices)
         if ($request->desde) $query->whereDate('fecha_venta', '>=', $request->desde);
         if ($request->hasta) $query->whereDate('fecha_venta', '<=', $request->hasta);
 
-        // Filtro por nombre de cliente (optimizado)
         if ($request->cliente) {
             $query->whereHas('cliente', function ($q) use ($request) {
                 $q->where('nombre', 'ilike', "%{$request->cliente}%");
             });
         }
 
-        // Paginación simple es más rápida en tablas grandes porque no cuenta el total exacto
-        return response()->json($query->paginate(20));
+        return response()->json($query->paginate(50));
     }
 
-    // Anular Venta
-
+    // 4. ANULAR VENTA
     public function destroy(Request $request, $id)
     {
-        // Verificar contraseña del usuario actual (admin)
         $user = $request->user();
         $passwordIngresada = $request->input('password');
 
         if (!$passwordIngresada || !Hash::check($passwordIngresada, $user->password)) {
-            return response()->json(['message' => 'Contraseña incorrecta'], 403); // Error 403: Prohibido
+            return response()->json(['message' => 'Contraseña incorrecta'], 403);
         }
 
         try {
             $venta = Venta::find($id);
+            if (!$venta) return response()->json(['message' => 'Venta no encontrada'], 404);
 
-            if (!$venta) {
-                return response()->json(['message' => 'Venta no encontrada'], 404);
-            }
-
-            // Eliminación en cascada
             $venta->detalles()->delete();
             $venta->delete();
 
             return response()->json(['message' => 'Venta anulada correctamente']);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Error al anular: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
         }
     }
 }

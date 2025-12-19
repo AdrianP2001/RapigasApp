@@ -8,7 +8,7 @@ use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\ClienteController;
 
 // --- Rutas Públicas ---
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->name('login');
 
 // --- Rutas Protegidas ---
 Route::middleware('auth:sanctum')->group(function () {
@@ -16,7 +16,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // 1. Productos
     Route::get('/productos', [ProductoController::class, 'index']);
 
-    // 2. Clientes (Estas son las que no te cargaban)
+    // 2. Clientes
     Route::get('/clientes', [ClienteController::class, 'index']);
     Route::get('/clientes/buscar', [ClienteController::class, 'search']);
     Route::post('/clientes', [ClienteController::class, 'store']);
