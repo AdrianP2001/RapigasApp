@@ -80,6 +80,7 @@ const Login: React.FC = () => {
                         placeholder="Usuario"
                         value={usuario}
                         onChange={(e) => setUsuario(e.target.value)}
+                        autoComplete="username"
                         style={styles.input}
                         disabled={loading || !conectado}
                     />
