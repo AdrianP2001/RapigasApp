@@ -1,20 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axiosConfig';
+import { printTicket } from '../utils/printTicket';
+import toast from 'react-hot-toast';
 
 const Historial: React.FC = () => {
-    // 1. Estados completos
+    // 1. Estados
     const [ventas, setVentas] = useState<any[]>([]);
     const [filtros, setFiltros] = useState({
         desde: new Date().toISOString().slice(0, 10),
         hasta: new Date().toISOString().slice(0, 10),
         cliente: ''
     });
-    // Aquí definimos 'page', que es lo que te daba error antes
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [anulandoId, setAnulandoId] = useState<number | null>(null); // Nuevo estado para bloqueo
 
-    // 2. Función de carga que ACEPTA el argumento 'p' (página)
+    // 2. Cargar Historial
     const cargarHistorial = async (p = 1) => {
         setLoading(true);
         try {
@@ -28,7 +30,7 @@ const Historial: React.FC = () => {
             const res = await api.get(`/ventas?${params}`);
             setVentas(res.data.data);
             setTotalPages(res.data.last_page);
-            setPage(p); // Actualizamos la página actual en el estado
+            setPage(p);
         } catch (error) {
             console.error(error);
         } finally {
@@ -38,36 +40,41 @@ const Historial: React.FC = () => {
 
     useEffect(() => {
         cargarHistorial(1);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleFilterChange = (e: any) => {
         setFiltros({ ...filtros, [e.target.name]: e.target.value });
     };
 
-    // 3. Función Anular corregida
-    const anularVenta = async (id: number) => {
-        // 1. Pedir contraseña (igual que en Python)
-        const password = prompt("🔒 SEGURIDAD\nPara anular esta venta, ingrese su contraseña de administrador:");
+    // MEJORA 1: Buscar al presionar Enter
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            cargarHistorial(1);
+        }
+    };
 
-        if (!password) return; // Si cancela o lo deja vacío, no hace nada
+    // 3. Anular Venta (Mejorado)
+    const anularVenta = async (id: number) => {
+        const password = prompt("🔒 SEGURIDAD\nPara anular esta venta, ingrese su contraseña de administrador:");
+        if (!password) return;
+
+        setAnulandoId(id); // Bloqueamos botón visualmente
 
         try {
-            // 2. Enviar la contraseña en el cuerpo de la petición DELETE
-            // Nota: En axios DELETE, el body se pasa dentro de la propiedad 'data'
             await api.delete(`/ventas/${id}`, {
                 data: { password: password }
             });
-
             alert("✅ Venta anulada correctamente");
-            cargarHistorial(page); // Recargar la tabla
-
+            cargarHistorial(page); // Recargar página actual
         } catch (error: any) {
-            // 3. Manejar errores específicos
             if (error.response && error.response.status === 403) {
-                alert("⛔ CONTRASEÑA INCORRECTA. No se anuló la venta.");
+                alert("⛔ CONTRASEÑA INCORRECTA.");
             } else {
-                alert("❌ Ocurrió un error al intentar anular.");
+                alert("❌ Error al anular.");
             }
+        } finally {
+            setAnulandoId(null); // Desbloqueamos
         }
     };
 
@@ -79,20 +86,32 @@ const Historial: React.FC = () => {
             <div style={styles.filterBar}>
                 <div style={styles.filterGroup}>
                     <label>Desde:</label>
-                    <input type="date" name="desde" value={filtros.desde} onChange={handleFilterChange} style={styles.input} />
+                    <input
+                        type="date" name="desde"
+                        value={filtros.desde} onChange={handleFilterChange} onKeyDown={handleKeyDown}
+                        style={styles.input}
+                    />
                 </div>
                 <div style={styles.filterGroup}>
                     <label>Hasta:</label>
-                    <input type="date" name="hasta" value={filtros.hasta} onChange={handleFilterChange} style={styles.input} />
+                    <input
+                        type="date" name="hasta"
+                        value={filtros.hasta} onChange={handleFilterChange} onKeyDown={handleKeyDown}
+                        style={styles.input}
+                    />
                 </div>
                 <div style={styles.filterGroup}>
                     <label>Cliente:</label>
-                    <input type="text" name="cliente" placeholder="Nombre..." value={filtros.cliente} onChange={handleFilterChange} style={styles.input} />
+                    <input
+                        type="text" name="cliente" placeholder="Nombre..."
+                        value={filtros.cliente} onChange={handleFilterChange} onKeyDown={handleKeyDown}
+                        style={styles.input}
+                    />
                 </div>
                 <button onClick={() => cargarHistorial(1)} style={styles.btnBuscar}>🔍 Buscar</button>
             </div>
 
-            {/* Tabla Responsive (Con Scroll Horizontal) */}
+            {/* Tabla Responsive */}
             <div style={styles.tableResponsive}>
                 <table style={styles.table}>
                     <thead>
@@ -106,7 +125,11 @@ const Historial: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {loading ? <tr><td colSpan={6} style={{ padding: 20, textAlign: 'center' }}>Cargando...</td></tr> :
+                        {loading ? (
+                            <tr><td colSpan={6} style={{ padding: 20, textAlign: 'center' }}>Cargando...</td></tr>
+                        ) : ventas.length === 0 ? (
+                            <tr><td colSpan={6} style={{ padding: 20, textAlign: 'center', color: '#aaa' }}>No se encontraron ventas</td></tr>
+                        ) : (
                             ventas.map((v) => (
                                 <tr key={v.id} style={styles.tr}>
                                     <td style={styles.td}>#{v.id}</td>
@@ -115,14 +138,25 @@ const Historial: React.FC = () => {
                                     <td style={{ ...styles.td, color: '#2ecc71', fontWeight: 'bold' }}>${parseFloat(v.total).toFixed(2)}</td>
                                     <td style={styles.td}>
                                         <small style={{ color: '#aaa' }}>
-                                            {v.detalles.map((d: any) => `${d.cantidad} ${d.producto?.nombre}`).join(', ')}
+                                            {v.detalles.map((d: any) => `${d.cantidad} ${d.producto?.nombre || 'Producto'}`).join(', ')}
                                         </small>
                                     </td>
                                     <td style={styles.td}>
-                                        <button onClick={() => anularVenta(v.id)} style={styles.btnAnular}>Anular</button>
+                                        <button
+                                            onClick={() => anularVenta(v.id)}
+                                            disabled={anulandoId === v.id} // Deshabilita si se está borrando este ID
+                                            style={{
+                                                ...styles.btnAnular,
+                                                opacity: anulandoId === v.id ? 0.5 : 1,
+                                                cursor: anulandoId === v.id ? 'wait' : 'pointer'
+                                            }}
+                                        >
+                                            {anulandoId === v.id ? '...' : 'Anular'}
+                                        </button>
                                     </td>
                                 </tr>
-                            ))}
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -145,27 +179,26 @@ const styles = {
     },
     filterGroup: { display: 'flex', flexDirection: 'column' as const, gap: '5px' },
     input: {
-        padding: '8px', borderRadius: '5px', border: '1px solid #444', backgroundColor: '#333', color: 'white'
+        padding: '8px', borderRadius: '5px', border: '1px solid #444', backgroundColor: '#333', color: 'white', minWidth: '150px'
     },
     btnBuscar: {
-        padding: '8px 20px', backgroundColor: '#3498DB', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold'
+        padding: '8px 20px', backgroundColor: '#3498DB', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', marginBottom: '1px'
     },
-    // Contenedor que permite scroll horizontal en móviles
     tableResponsive: {
-        flex: 1, overflowX: 'auto' as const, backgroundColor: '#222', borderRadius: '8px', padding: '10px'
+        flex: 1, overflowX: 'auto' as const, backgroundColor: '#222', borderRadius: '8px', padding: '10px', border: '1px solid #333'
     },
-    table: { width: '100%', borderCollapse: 'collapse' as const, minWidth: '600px' }, // minWidth fuerza el scroll
-    th: { padding: '10px', borderBottom: '1px solid #444', color: '#aaa', whiteSpace: 'nowrap' as const },
+    table: { width: '100%', borderCollapse: 'collapse' as const, minWidth: '700px' },
+    th: { padding: '12px 10px', borderBottom: '2px solid #444', color: '#ccc', textAlign: 'left' as const, whiteSpace: 'nowrap' as const },
     tr: { borderBottom: '1px solid #333' },
     td: { padding: '12px 10px', whiteSpace: 'nowrap' as const },
     btnAnular: {
-        backgroundColor: '#c0392b', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'
+        backgroundColor: '#c0392b', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold'
     },
     pagination: {
         marginTop: '15px', textAlign: 'center' as const, display: 'flex', justifyContent: 'center', alignItems: 'center'
     },
     btnPage: {
-        backgroundColor: '#444', color: 'white', border: 'none', padding: '5px 15px', borderRadius: '4px', cursor: 'pointer'
+        backgroundColor: '#444', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', margin: '0 5px'
     }
 };
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import { Toaster } from 'react-hot-toast'; // <--- IMPORTAR
 
 // Hook personalizado para detectar tamaño de pantalla (Optimización sugerida)
 const useIsMobile = () => {
@@ -60,6 +61,7 @@ const Layout: React.FC = () => {
                     <Outlet />
                 </main>
             </div>
+            <Toaster position="top-center" reverseOrder={false} />
         </div>
     );
 };

@@ -1,8 +1,7 @@
 import axios from 'axios';
 
 // Asegúrate de usar TU IP LOCAL aquí
-// const baseURL = 'http://192.168.100.19:8000/api';
-const baseURL = 'http://localhost:8000/api';
+const baseURL = 'http://192.168.100.19:8000/api';
 
 const api = axios.create({
     baseURL,
@@ -10,7 +9,7 @@ const api = axios.create({
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     },
-    timeout: 10000 // 10s timeout
+    timeout: 30000 // 30s timeout
 });
 
 api.interceptors.request.use(config => {
@@ -31,7 +30,7 @@ api.interceptors.response.use(
                 alert('Error interno del servidor. Intente más tarde.');
             }
         } else if (error.code === 'ECONNABORTED') {
-            alert('La solicitud tardó demasiado. Revise su conexión.');
+            console.warn('⚠️ La carga de alertas tardó mucho.'); // ✅ Solo avisa en consola
         } else {
             console.error('Error de red:', error.message);
         }

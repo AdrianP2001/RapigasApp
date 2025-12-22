@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axiosConfig';
+import { useResponsive } from '../hooks/useResponsive'; // <--- IMPORTAMOS EL HOOK
 
 interface Alerta {
     id: number;
@@ -12,6 +13,9 @@ interface Alerta {
 const Alertas: React.FC = () => {
     const [alertas, setAlertas] = useState<Alerta[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // --- USAMOS EL HOOK PARA DETECTAR MÓVIL ---
+    const { isMobile } = useResponsive();
 
     const cargarAlertas = async () => {
         try {
@@ -31,26 +35,21 @@ const Alertas: React.FC = () => {
     const enviarWpp = (alerta: Alerta) => {
         const prod = alerta.tipo === 'GAS' ? "tu gas" : "tu agua";
         const msg = `Hola ${alerta.nombre}, vimos que ${prod} está por acabarse. ¿Deseas pedir uno?`;
-        // Formato de número internacional (Asumiendo Ecuador 593)
         let tel = alerta.telefono.trim();
         if (tel.startsWith('0')) tel = '593' + tel.substring(1);
-
         window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank');
     };
 
     const omitirAlerta = async (alerta: Alerta) => {
         if (!window.confirm(`¿Omitir alerta de ${alerta.nombre}? Se reiniciará el contador.`)) return;
-
         try {
             await api.post(`/alertas/${alerta.id}/reset`, { tipo: alerta.tipo });
-            // Recargamos la lista localmente
             setAlertas(alertas.filter(a => !(a.id === alerta.id && a.tipo === alerta.tipo)));
         } catch (error) {
             alert("Error al actualizar");
         }
     };
 
-    // Separamos en dos listas
     const gasAlerts = alertas.filter(a => a.tipo === 'GAS');
     const aguaAlerts = alertas.filter(a => a.tipo === 'AGUA');
 
@@ -63,7 +62,12 @@ const Alertas: React.FC = () => {
                 <button onClick={cargarAlertas} style={styles.btnReload}>↻ Actualizar</button>
             </div>
 
-            <div style={styles.columnsContainer}>
+            {/* --- CONTENEDOR RESPONSIVE --- */}
+            <div style={{
+                ...styles.columnsContainer,
+                flexDirection: isMobile ? 'column' : 'row', // <--- CAMBIO CLAVE
+                height: isMobile ? 'auto' : 'calc(100vh - 150px)' // En móvil dejamos que crezca hacia abajo
+            }}>
 
                 {/* --- COLUMNA GAS --- */}
                 <div style={styles.column}>
@@ -92,7 +96,7 @@ const Alertas: React.FC = () => {
     );
 };
 
-// Componente Tarjeta Individual
+// Componente Tarjeta Individual (Sin cambios, ya está perfecto)
 const CardAlerta = ({ data, onWpp, onOmitir }: { data: Alerta, onWpp: () => void, onOmitir: () => void }) => {
     const esVencido = data.dias <= 0;
     const colorDias = esVencido ? '#ff4444' : '#ffbb00';
@@ -118,80 +122,45 @@ const CardAlerta = ({ data, onWpp, onOmitir }: { data: Alerta, onWpp: () => void
 
 const styles = {
     container: {
-        padding: '20px',
-        color: 'white',
-        height: '100%',
-        boxSizing: 'border-box' as const
+        padding: '20px', color: 'white', height: '100%', boxSizing: 'border-box' as const
     },
     header: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px',
-        borderBottom: '1px solid #444',
-        paddingBottom: '10px'
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: '20px', borderBottom: '1px solid #444', paddingBottom: '10px'
     },
     btnReload: {
-        backgroundColor: '#005580',
-        color: 'white',
-        border: 'none',
-        padding: '8px 15px',
-        borderRadius: '5px',
-        cursor: 'pointer'
+        backgroundColor: '#005580', color: 'white', border: 'none',
+        padding: '8px 15px', borderRadius: '5px', cursor: 'pointer'
     },
     columnsContainer: {
         display: 'flex',
         gap: '20px',
-        height: 'calc(100vh - 150px)', // Ajuste para que no se salga de pantalla
-    },
+        // 'height' y 'flexDirection' se manejan dinámicamente arriba en el JSX
+    } as React.CSSProperties,
     column: {
-        flex: 1,
-        backgroundColor: '#252525',
-        borderRadius: '10px',
-        padding: '15px',
-        display: 'flex',
-        flexDirection: 'column' as const
+        flex: 1, backgroundColor: '#252525', borderRadius: '10px', padding: '15px',
+        display: 'flex', flexDirection: 'column' as const,
+        minHeight: '300px' // Altura mínima para que no se vea aplastado en móvil
     },
     colTitle: {
-        textAlign: 'center' as const,
-        borderBottom: '1px solid #444',
-        paddingBottom: '10px',
-        margin: '0 0 10px 0'
+        textAlign: 'center' as const, borderBottom: '1px solid #444',
+        paddingBottom: '10px', margin: '0 0 10px 0'
     },
     list: {
-        flex: 1,
-        overflowY: 'auto' as const
+        flex: 1, overflowY: 'auto' as const
     },
     emptyMsg: {
-        textAlign: 'center' as const,
-        color: 'gray',
-        marginTop: '20px'
+        textAlign: 'center' as const, color: 'gray', marginTop: '20px'
     },
     card: {
-        backgroundColor: '#333',
-        borderRadius: '8px',
-        padding: '10px',
-        marginBottom: '10px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        border: '1px solid #444'
+        backgroundColor: '#333', borderRadius: '8px', padding: '10px', marginBottom: '10px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #444'
     },
-    cardInfo: {
-        flex: 1
-    },
-    cardActions: {
-        display: 'flex',
-        gap: '5px'
-    },
+    cardInfo: { flex: 1 },
+    cardActions: { display: 'flex', gap: '5px' },
     btnAction: {
-        border: 'none',
-        color: 'white',
-        padding: '5px 10px',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontWeight: 'bold',
-        fontSize: '12px'
+        border: 'none', color: 'white', padding: '5px 10px', borderRadius: '4px',
+        cursor: 'pointer', fontWeight: 'bold', fontSize: '12px'
     }
 };
 

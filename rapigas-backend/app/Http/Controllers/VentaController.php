@@ -125,7 +125,9 @@ class VentaController extends Controller
 
             $venta->detalles()->delete();
             $venta->delete();
-
+            
+            Cache::tags(['dashboard'])->flush();
+            
             return response()->json(['message' => 'Venta anulada correctamente']);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
