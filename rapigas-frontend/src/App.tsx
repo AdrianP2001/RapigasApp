@@ -7,6 +7,7 @@ import Layout from './components/Layout'; // <--- IMPORTAR
 import Alertas from './pages/Alertas'; // <--- IMPORTAR
 import Clientes from './pages/Clientes'; // <--- IMPORTAR 
 import Historial from './pages/Historial';
+import Productos from './pages/Productos';
 
 const RutaPrivada = ({ children }: { children: React.ReactElement }) => {
   const token = localStorage.getItem('token');
@@ -29,6 +30,7 @@ function App() {
           <Route path="/alertas" element={<Alertas />} />
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/historial" element={<Historial />} />
+          <Route path="/productos" element={<Productos />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" />} />

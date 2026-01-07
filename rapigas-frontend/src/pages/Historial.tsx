@@ -59,22 +59,25 @@ const Historial: React.FC = () => {
         const password = prompt("🔒 SEGURIDAD\nPara anular esta venta, ingrese su contraseña de administrador:");
         if (!password) return;
 
-        setAnulandoId(id); // Bloqueamos botón visualmente
+        setAnulandoId(id);
 
         try {
             await api.delete(`/ventas/${id}`, {
                 data: { password: password }
             });
-            alert("✅ Venta anulada correctamente");
-            cargarHistorial(page); // Recargar página actual
+
+            // CORRECCIÓN: Usar toast en lugar de alert
+            toast.success("Venta anulada correctamente");
+
+            cargarHistorial(page);
         } catch (error: any) {
             if (error.response && error.response.status === 403) {
-                alert("⛔ CONTRASEÑA INCORRECTA.");
+                toast.error("⛔ Contraseña incorrecta");
             } else {
-                alert("❌ Error al anular.");
+                toast.error("❌ Error al anular la venta");
             }
         } finally {
-            setAnulandoId(null); // Desbloqueamos
+            setAnulandoId(null);
         }
     };
 
@@ -153,6 +156,8 @@ const Historial: React.FC = () => {
                                         >
                                             {anulandoId === v.id ? '...' : 'Anular'}
                                         </button>
+
+                                        <button onClick={() => printTicket(v)} style={styles.btnPrint}>🖨️</button>
                                     </td>
                                 </tr>
                             ))
@@ -167,12 +172,12 @@ const Historial: React.FC = () => {
                 <span style={{ margin: '0 10px' }}>Página {page} de {totalPages}</span>
                 <button disabled={page >= totalPages} onClick={() => cargarHistorial(page + 1)} style={styles.btnPage}>{'>'}</button>
             </div>
-        </div>
+        </div >
     );
 };
 
 const styles = {
-    container: { padding: '20px', color: 'white', height: '100%', display: 'flex', flexDirection: 'column' as const, boxSizing: 'border-box' as const },
+    container: { padding: '20px', color: 'white', height: '90%', display: 'flex', flexDirection: 'column' as const, boxSizing: 'border-box' as const },
     filterBar: {
         backgroundColor: '#252525', padding: '15px', borderRadius: '8px', marginBottom: '20px',
         display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' as const
@@ -183,6 +188,9 @@ const styles = {
     },
     btnBuscar: {
         padding: '8px 20px', backgroundColor: '#3498DB', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', marginBottom: '1px'
+    },
+    btnPrint: {
+        marginLeft: '10px', padding: '6px 12px', backgroundColor: '#2980B9', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer'
     },
     tableResponsive: {
         flex: 1, overflowX: 'auto' as const, backgroundColor: '#222', borderRadius: '8px', padding: '10px', border: '1px solid #333'

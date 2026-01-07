@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import { useResponsive } from '../hooks/useResponsive';
 import { theme } from '../styles/theme';
+import toast from 'react-hot-toast'; // <--- 1. IMPORTAR TOAST
 
 interface Producto { id: number; nombre: string; precio: string; }
 interface Cliente { id: number; nombre: string; telefono: string; categoria: string; }
@@ -30,7 +31,7 @@ const Ventas: React.FC = () => {
         api.get('/productos').then(res => setProductos(res.data));
     }, []);
 
-    // --- BÚSQUEDA (Con useCallback para corregir Warning) ---
+    // --- BÚSQUEDA ---
     const ejecutarBusqueda = useCallback(async () => {
         if (busqueda.length > 1) {
             try {
@@ -38,7 +39,7 @@ const Ventas: React.FC = () => {
                 setResultados(res.data);
             } catch (e) { console.error(e); }
         }
-    }, [busqueda]); // Dependencia correcta
+    }, [busqueda]);
 
     // Debounce
     useEffect(() => {
@@ -50,7 +51,7 @@ const Ventas: React.FC = () => {
             }
         }, 500);
         return () => clearTimeout(delayDebounceFn);
-    }, [busqueda, ejecutarBusqueda]); // Ahora React está feliz con las dependencias
+    }, [busqueda, ejecutarBusqueda]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') ejecutarBusqueda();
@@ -60,6 +61,8 @@ const Ventas: React.FC = () => {
         setClienteSel(c);
         setBusqueda('');
         setResultados([]);
+        // Feedback visual sutil al seleccionar
+        toast.success(`Cliente seleccionado: ${c.nombre}`, { duration: 2000, icon: '👤' });
     };
 
     // --- ESTILOS DINÁMICOS ---
@@ -110,8 +113,16 @@ const Ventas: React.FC = () => {
         setTotal(items.reduce((acc, item) => acc + item.subtotal, 0));
     };
 
+    // --- COBRAR (ACTUALIZADO CON TOAST) ---
     const cobrar = async () => {
-        if (!clienteSel) return;
+        if (!clienteSel) {
+            toast.error("Seleccione un cliente primero");
+            return;
+        }
+
+        // Loader de espera (Opcional, se ve muy bien)
+        const toastId = toast.loading('Procesando venta...');
+
         try {
             await api.post('/ventas', {
                 cliente_id: clienteSel.id,
@@ -123,11 +134,17 @@ const Ventas: React.FC = () => {
                     precio: i.producto.precio
                 }))
             });
-            alert("✅ ¡Venta registrada con éxito!");
+
+            // Reemplazamos el loader con éxito
+            toast.success("¡Venta registrada con éxito!", { id: toastId });
+
             setCarrito([]);
             setClienteSel(null);
             setTotal(0);
-        } catch (e) { alert("❌ Error al registrar la venta"); }
+        } catch (e) {
+            // Reemplazamos el loader con error
+            toast.error("Error al registrar la venta", { id: toastId });
+        }
     };
 
     return (

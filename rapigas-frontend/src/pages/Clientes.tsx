@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axiosConfig';
+import toast from 'react-hot-toast'; // ✅ Usamos Toast para mensajes modernos
 
 interface Cliente {
     id?: number; nombre: string; telefono: string; direccion: string;
@@ -23,7 +24,6 @@ const Clientes: React.FC = () => {
     const [idEdicion, setIdEdicion] = useState<number | null>(null);
     const [lista, setLista] = useState<Cliente[]>([]);
     const [busqueda, setBusqueda] = useState('');
-    const [mensaje, setMensaje] = useState({ text: '', color: '' });
 
     // Cargar clientes al inicio
     useEffect(() => { cargarClientes(); }, []);
@@ -36,71 +36,64 @@ const Clientes: React.FC = () => {
         } catch (e) { console.error(e); }
     };
 
-    // --- MANEJO DE INPUTS MEJORADO ---
+    // --- MANEJO DE INPUTS ---
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-
-        // Si es el teléfono, solo permitimos números
+        // Validación solo números para teléfono
         if (name === 'telefono') {
-            const soloNumeros = value.replace(/\D/g, ''); // Borra todo lo que no sea número
-            if (soloNumeros.length <= 10) { // Límite estricto de 10
-                setForm({ ...form, [name]: soloNumeros });
-            }
+            const soloNumeros = value.replace(/\D/g, '');
+            if (soloNumeros.length <= 10) setForm({ ...form, [name]: soloNumeros });
         } else {
             setForm({ ...form, [name]: value });
         }
     };
 
-    // --- GUARDAR CON VALIDACIÓN ROBUSTA ---
+    // --- GUARDAR (Lógica corregida y única) ---
     const guardar = async () => {
-        // 1. Limpiar mensaje previo
-        setMensaje({ text: '', color: '' });
-
-        // 2. Validaciones estrictas
+        // 1. Validaciones
         if (!form.nombre.trim()) {
-            setMensaje({ text: '❌ El nombre es obligatorio', color: '#ff4444' }); 
+            toast.error('El nombre es obligatorio');
             return;
         }
-
-        // Regex: Debe empezar con 09 y tener 8 dígitos más (Total 10 dígitos exactos)
         const telefonoRegex = /^09\d{8}$/;
         if (!telefonoRegex.test(form.telefono)) {
-            setMensaje({ text: '❌ El celular debe tener 10 dígitos y empezar con 09', color: '#ff4444' }); 
+            toast.error('El celular debe tener 10 dígitos (empieza con 09)');
             return;
         }
 
         try {
-            // Enviamos siempre el ID si estamos editando
+            // 2. Guardar o Actualizar
             await api.post('/clientes', { ...form, id: idEdicion });
-            
-            setMensaje({ text: idEdicion ? '✅ Cliente Actualizado' : '✅ Cliente Guardado', color: '#2ecc71' });
+
+            // 3. Feedback y limpieza
+            toast.success(idEdicion ? 'Cliente actualizado' : 'Cliente registrado');
             limpiarForm();
-            cargarClientes(); // Recargar la lista
-        } catch (e) { 
-            setMensaje({ text: '❌ Error al guardar en base de datos', color: '#ff4444' }); 
+            cargarClientes();
+        } catch (e) {
+            toast.error('Error al guardar en base de datos');
         }
     };
 
+    // --- ELIMINAR ---
     const eliminar = async () => {
-        if (!idEdicion || !window.confirm("¿Seguro que deseas eliminar este cliente?")) return;
+        if (!idEdicion || !window.confirm("¿Estás seguro de eliminar este cliente?")) return;
         try {
             await api.delete(`/clientes/${idEdicion}`);
-            setMensaje({ text: '🗑️ Cliente eliminado', color: 'gray' });
+            toast.success('Cliente eliminado');
             limpiarForm();
             cargarClientes();
+        } catch {
+            toast.error('No se puede eliminar (Tiene historial de ventas)');
         }
-        catch { setMensaje({ text: '❌ No se puede eliminar (Tiene historial de ventas)', color: '#ff4444' }); }
     };
 
     const limpiarForm = () => {
         setForm({ nombre: '', telefono: '', direccion: '', categoria: 'Hogar', frecuencia_consumo: 20, frecuencia_agua: 7 });
-        setIdEdicion(null); 
-        // No borramos el mensaje de éxito inmediatamente para que el usuario lo vea
-        setTimeout(() => setMensaje({ text: '', color: '' }), 3000);
+        setIdEdicion(null);
     };
 
     const cargarParaEditar = (c: Cliente) => {
-        // Formatear teléfono (si viene con 593 del backend, lo pasamos a 09)
+        // Formatear teléfono visualmente (si viene con 593)
         let tel = c.telefono ? c.telefono.toString() : '';
         if (tel.startsWith('593')) tel = '0' + tel.substring(3);
 
@@ -112,32 +105,32 @@ const Clientes: React.FC = () => {
             frecuencia_agua: c.frecuencia_agua || 7
         });
         setIdEdicion(c.id || null);
-        setMensaje({ text: '✏️ Editando cliente...', color: '#E67E22' });
+        toast('Editando cliente...', { icon: '✏️' });
     };
 
     return (
         <div style={styles.container}>
-            <h2 style={{ marginTop: 0 }}>Agregar Nuevos Clientes</h2>
+            <h2 style={{ marginTop: 0 }}>Gestión de Clientes</h2>
 
             {/* --- FORMULARIO --- */}
             <div style={styles.formPanel}>
                 <div style={{ ...styles.row, flexDirection: isMobile ? 'column' : 'row' }}>
-                    <input 
-                        name="nombre" 
-                        placeholder="Nombre Completo" 
-                        value={form.nombre} 
-                        onChange={handleChange} 
-                        style={{ ...styles.input, flex: 2 }} 
+                    <input
+                        name="nombre"
+                        placeholder="Nombre Completo"
+                        value={form.nombre}
+                        onChange={handleChange}
+                        style={{ ...styles.input, flex: 2 }}
                         autoComplete="off"
                     />
-                    <input 
-                        name="telefono" 
-                        placeholder="Celular (09...)" 
-                        value={form.telefono} 
-                        onChange={handleChange} 
-                        style={{ ...styles.input, flex: 1 }} 
-                        maxLength={10} 
-                        inputMode="numeric" // Teclado numérico en celular
+                    <input
+                        name="telefono"
+                        placeholder="Celular (09...)"
+                        value={form.telefono}
+                        onChange={handleChange}
+                        style={{ ...styles.input, flex: 1 }}
+                        maxLength={10}
+                        inputMode="numeric"
                     />
                     <select name="categoria" value={form.categoria} onChange={handleChange} style={{ ...styles.input, flex: 1 }}>
                         <option value="Hogar">Hogar</option>
@@ -146,12 +139,12 @@ const Clientes: React.FC = () => {
                 </div>
 
                 <div style={{ ...styles.row, flexDirection: isMobile ? 'column' : 'row' }}>
-                    <input 
-                        name="direccion" 
-                        placeholder="Dirección / Referencia" 
-                        value={form.direccion} 
-                        onChange={handleChange} 
-                        style={{ ...styles.input, flex: 2 }} 
+                    <input
+                        name="direccion"
+                        placeholder="Dirección / Referencia"
+                        value={form.direccion}
+                        onChange={handleChange}
+                        style={{ ...styles.input, flex: 2 }}
                     />
                     <div style={{ display: 'flex', gap: 10, flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -174,38 +167,30 @@ const Clientes: React.FC = () => {
                     )}
                     <button onClick={limpiarForm} style={{ ...styles.btn, backgroundColor: '#444' }}>Limpiar</button>
                 </div>
-                
-                {/* Mensaje de estado */}
-                <p style={{ 
-                    color: mensaje.color, 
-                    textAlign: 'center', 
-                    marginTop: 10, 
-                    fontWeight: 'bold',
-                    minHeight: '24px' 
-                }}>
-                    {mensaje.text}
-                </p>
             </div>
 
             {/* --- BUSCADOR --- */}
             <div style={{ marginBottom: 10, display: 'flex', gap: 10 }}>
-                <input 
-                    placeholder="🔍 Buscar por nombre o teléfono..." 
-                    value={busqueda} 
-                    onChange={e => { setBusqueda(e.target.value); cargarClientes(e.target.value) }} 
-                    style={{ ...styles.input, flex: 1 }} 
+                <input
+                    placeholder="🔍 Buscar por nombre o teléfono..."
+                    value={busqueda}
+                    onChange={e => { setBusqueda(e.target.value); cargarClientes(e.target.value) }}
+                    style={{ ...styles.input, flex: 1 }}
                 />
             </div>
 
             {/* --- LISTA DE RESULTADOS --- */}
             <div style={styles.listContainer}>
-                {lista.length === 0 && <p style={{textAlign: 'center', color: '#777'}}>No hay clientes registrados</p>}
+                {lista.length === 0 && <p style={{ textAlign: 'center', color: '#777' }}>No hay clientes registrados</p>}
                 {lista.map(c => (
                     <div key={c.id} style={styles.card} onClick={() => cargarParaEditar(c)}>
                         <div style={{ fontWeight: 'bold', fontSize: '16px' }}>{c.nombre}</div>
+
+                        {/* Dirección como texto simple (Sin mapa) */}
                         <div style={{ fontSize: '13px', color: '#aaa', marginTop: '4px' }}>
                             📞 {c.telefono} &nbsp;|&nbsp; 🏠 {c.direccion || 'Sin dirección'}
                         </div>
+
                         {c.categoria === 'Negocio' && (
                             <span style={styles.badgeNegocio}>Negocio</span>
                         )}

@@ -14,7 +14,7 @@ Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::middleware('auth:sanctum')->group(function () {
 
     // 1. Productos
-    Route::get('/productos', [ProductoController::class, 'index']);
+    Route::apiResource('productos', ProductoController::class);
 
     // 2. Clientes
     Route::get('/clientes', [ClienteController::class, 'index']);

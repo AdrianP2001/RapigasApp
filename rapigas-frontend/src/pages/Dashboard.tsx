@@ -18,13 +18,13 @@ const Dashboard: React.FC = () => {
     useEffect(() => {
         const cargarDatos = async () => {
             try {
-                // 1. Cargar Resumen Ventas
                 const resVentas = await api.get('/dashboard');
                 setResumen(resVentas.data);
 
-                // 2. Cargar Alertas (Solo necesitamos contar cuántas hay)
                 const resAlertas = await api.get('/alertas');
                 if (Array.isArray(resAlertas.data)) {
+                    // Filtramos para contar solo las urgentes (ej: 2 días o menos) o todas
+                    // Aquí contamos todas las que devuelve el endpoint
                     setAlertasCount(resAlertas.data.length);
                 }
             } catch (error) {
@@ -36,11 +36,7 @@ const Dashboard: React.FC = () => {
         cargarDatos();
     }, []);
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        navigate('/login');
-    };
+    // ❌ ELIMINADO: handleLogout (El botón está en el Sidebar)
 
     if (loading) return <div style={styles.container}><h2 style={{ color: 'white' }}>Cargando...</h2></div>;
 
@@ -54,28 +50,29 @@ const Dashboard: React.FC = () => {
             {/* Grid de Tarjetas */}
             <div style={styles.grid}>
 
-                {/* Tarjeta Ventas */}
+                {/* Tarjeta Ventas (Click -> Ir a Historial) */}
                 <Card
                     titulo="Ventas Hoy"
                     valor={`$ ${Number(resumen.ventas_hoy).toFixed(2)}`}
                     color="#2B2B2B"
                     icono="💰"
+                    onClick={() => navigate('/historial')} // ✅ AHORA ES ÚTIL
                 />
 
-                {/* Tarjeta Alertas */}
+                {/* Tarjeta Alertas (Click -> Ir a Alertas) */}
                 <Card
                     titulo="Alertas Pendientes"
                     valor={alertasCount.toString()}
-                    color={alertasCount > 0 ? "#aa0000" : "gray"} // Rojo si hay alertas, gris si no
+                    color={alertasCount > 0 ? "#aa0000" : "gray"} 
                     icono="⚠️"
-                    onClick={() => console.log("Ir a alertas...")}
+                    onClick={() => navigate('/alertas')} // ✅ AHORA ES ÚTIL
                 />
 
                 {/* Tarjeta Gas */}
                 <Card
                     titulo="Gas Vendido"
                     valor={`${resumen.cantidad_gas} unds`}
-                    color="#E67E22" // Naranja
+                    color="#E67E22" 
                     icono="🔥"
                 />
 
@@ -83,7 +80,7 @@ const Dashboard: React.FC = () => {
                 <Card
                     titulo="Agua Vendida"
                     valor={`${resumen.cantidad_agua} unds`}
-                    color="#3498DB" // Azul
+                    color="#3498DB" 
                     icono="💧"
                 />
             </div>
@@ -98,10 +95,14 @@ const Card = ({ titulo, valor, color, icono, onClick }: any) => (
         style={{
             ...styles.card,
             backgroundColor: color,
-            cursor: onClick ? 'pointer' : 'default'
+            cursor: onClick ? 'pointer' : 'default',
+            // Añadimos efecto hover visual si es clickeable
+            transform: onClick ? 'scale(1)' : 'none' 
         }}
+        // Efecto simple de hover (opcional, requiere CSS real para hover perfecto o styled-components)
+        title={onClick ? "Clic para ver detalles" : ""}
     >
-        <div style={{ fontSize: '30px', marginBottom: '10px' }}>{icono}</div>
+        <div style={{ fontSize: '20px', marginBottom: '10px' }}>{icono}</div>
         <h3 style={{ margin: '0 0 10px 0', fontWeight: 'normal', opacity: 0.8 }}>{titulo}</h3>
         <span style={{ fontSize: '32px', fontWeight: 'bold' }}>{valor}</span>
     </div>
@@ -110,7 +111,8 @@ const Card = ({ titulo, valor, color, icono, onClick }: any) => (
 // Estilos CSS-in-JS
 const styles = {
     container: {
-        minHeight: '100vh',
+        minHeight: '100vh', // Se ajusta al contenido o pantalla
+        height: '100%',     // Asegura que llene el contenedor padre
         backgroundColor: '#1a1a1a',
         color: 'white',
         padding: '40px',
@@ -129,18 +131,10 @@ const styles = {
         margin: 0,
         fontSize: '28px'
     },
-    logoutBtn: {
-        backgroundColor: '#c0392b',
-        color: 'white',
-        border: 'none',
-        padding: '10px 20px',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        fontWeight: 'bold'
-    },
+    // ❌ ELIMINADO: logoutBtn (Ya no se usa)
     grid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', // Responsive automático
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
         gap: '20px',
         maxWidth: '1200px',
         margin: '0 auto'

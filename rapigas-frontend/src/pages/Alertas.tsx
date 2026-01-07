@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axiosConfig';
-import { useResponsive } from '../hooks/useResponsive'; // <--- IMPORTAMOS EL HOOK
+import { useResponsive } from '../hooks/useResponsive';
+import { FaWhatsapp } from 'react-icons/fa'; // <--- 1. IMPORTAR EL ICONO
 
 interface Alerta {
     id: number;
@@ -14,7 +15,6 @@ const Alertas: React.FC = () => {
     const [alertas, setAlertas] = useState<Alerta[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // --- USAMOS EL HOOK PARA DETECTAR MÓVIL ---
     const { isMobile } = useResponsive();
 
     const cargarAlertas = async () => {
@@ -62,11 +62,10 @@ const Alertas: React.FC = () => {
                 <button onClick={cargarAlertas} style={styles.btnReload}>↻ Actualizar</button>
             </div>
 
-            {/* --- CONTENEDOR RESPONSIVE --- */}
             <div style={{
                 ...styles.columnsContainer,
-                flexDirection: isMobile ? 'column' : 'row', // <--- CAMBIO CLAVE
-                height: isMobile ? 'auto' : 'calc(100vh - 150px)' // En móvil dejamos que crezca hacia abajo
+                flexDirection: isMobile ? 'column' : 'row',
+                height: isMobile ? 'auto' : 'calc(100vh - 150px)'
             }}>
 
                 {/* --- COLUMNA GAS --- */}
@@ -96,7 +95,7 @@ const Alertas: React.FC = () => {
     );
 };
 
-// Componente Tarjeta Individual (Sin cambios, ya está perfecto)
+// Componente Tarjeta Individual
 const CardAlerta = ({ data, onWpp, onOmitir }: { data: Alerta, onWpp: () => void, onOmitir: () => void }) => {
     const esVencido = data.dias <= 0;
     const colorDias = esVencido ? '#ff4444' : '#ffbb00';
@@ -113,7 +112,12 @@ const CardAlerta = ({ data, onWpp, onOmitir }: { data: Alerta, onWpp: () => void
                 </div>
             </div>
             <div style={styles.cardActions}>
-                <button onClick={onWpp} style={{ ...styles.btnAction, backgroundColor: '#25D366' }}>Wpp</button>
+                {/* 2. BOTÓN WHATSAPP CON ICONO */}
+                <button onClick={onWpp} style={{ ...styles.btnAction, backgroundColor: '#25D366', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '5px' }} title="Enviar WhatsApp">
+                    <FaWhatsapp size={18} />
+                    <span style={{ fontSize: '12px' }}>Enviar</span>
+                </button>
+
                 <button onClick={onOmitir} style={{ ...styles.btnAction, backgroundColor: '#444' }}>Omitir</button>
             </div>
         </div>
@@ -135,12 +139,11 @@ const styles = {
     columnsContainer: {
         display: 'flex',
         gap: '20px',
-        // 'height' y 'flexDirection' se manejan dinámicamente arriba en el JSX
     } as React.CSSProperties,
     column: {
         flex: 1, backgroundColor: '#252525', borderRadius: '10px', padding: '15px',
         display: 'flex', flexDirection: 'column' as const,
-        minHeight: '300px' // Altura mínima para que no se vea aplastado en móvil
+        minHeight: '300px'
     },
     colTitle: {
         textAlign: 'center' as const, borderBottom: '1px solid #444',

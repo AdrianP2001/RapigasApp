@@ -53,10 +53,11 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, setMobileOpen }) => {
 
     const menuItems = [
         { path: '/dashboard', label: 'Inicio', icono: '🏠', color: 'transparent' },
-        { path: '/ventas', label: 'Nueva Venta', icono: '🛒', color: '#27ae60' },
+        { path: '/ventas', label: 'Nueva Venta', icono: '🛒', color: 'transparent' },
         { path: '/alertas', label: 'Alertas', icono: '⚠️', color: 'transparent', badge: true }, // Flag para badge
         { path: '/clientes', label: 'Clientes', icono: '👥', color: 'transparent' },
-        { path: '/historial', label: 'Historial', icono: '📜', color: '#D35400' },
+        { path: '/historial', label: 'Historial', icono: '📜', color: 'transparent' },
+        { path: '/productos', label: 'Productos', icono: '📦', color: 'transparent' },
     ];
 
     return (
@@ -138,8 +139,8 @@ const styles = {
     },
     logoArea: {
         textAlign: 'center' as const,
-        marginBottom: '30px',
-        paddingBottom: '20px',
+        marginBottom: '10px',
+        paddingBottom: '10px',
         borderBottom: '1px solid #444',
     },
     userInfo: {
@@ -152,7 +153,7 @@ const styles = {
     nav: {
         display: 'flex',
         flexDirection: 'column' as const,
-        gap: '8px',
+        gap: '5px',
         flex: 1
     },
     link: {
